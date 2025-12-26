@@ -1,0 +1,141 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DML 审计引擎 | 智能合规审计系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              primary: {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                200: '#bfdbfe',
+                300: '#93c5fd',
+                400: '#60a5fa',
+                500: '#3b82f6',
+                600: '#2563eb',
+                700: '#1d4ed8',
+                800: '#1e40af',
+                900: '#1e3a8a',
+              },
+            },
+            animation: {
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'spin-slow': 'spin 8s linear infinite',
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+        :root {
+          --bg-main: #f8fafc;
+          --glass-bg: rgba(255, 255, 255, 0.6);
+          --glass-border: rgba(0, 0, 0, 0.05);
+          --text-main: #0f172a;
+          --text-muted: #64748b;
+        }
+        
+        html.dark {
+          --bg-main: #020617;
+          --glass-bg: rgba(255, 255, 255, 0.03);
+          --glass-border: rgba(255, 255, 255, 0.08);
+          --text-main: #f8fafc;
+          --text-muted: #94a3b8;
+        }
+
+        body { 
+          font-family: 'Plus Jakarta Sans', 'Noto Sans SC', sans-serif;
+          background-color: var(--bg-main);
+          color: var(--text-main);
+          transition: background-color 0.5s ease;
+          overflow-x: hidden;
+        }
+
+        .glass {
+          background: var(--glass-bg);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border: 1px solid var(--glass-border);
+          transition: background 0.3s ease, border 0.3s ease;
+        }
+
+        .ai-glow {
+          box-shadow: 0 0 50px -10px rgba(59, 130, 246, 0.2);
+        }
+
+        .mesh-gradient {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          z-index: -1;
+          pointer-events: none;
+          opacity: 0.6;
+        }
+        
+        html.light .mesh-gradient {
+          background: 
+            radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0, transparent 50%),
+            radial-gradient(at 100% 0%, rgba(147, 197, 253, 0.1) 0, transparent 50%),
+            radial-gradient(at 50% 100%, rgba(241, 245, 249, 1) 0, transparent 80%);
+        }
+
+        html.dark .mesh-gradient {
+          background: 
+            radial-gradient(at 0% 0%, rgba(30, 58, 138, 0.3) 0, transparent 50%),
+            radial-gradient(at 100% 0%, rgba(76, 29, 149, 0.3) 0, transparent 50%),
+            radial-gradient(at 50% 100%, rgba(15, 23, 42, 1) 0, transparent 80%);
+        }
+
+        @keyframes scan {
+          0% { transform: translateY(-100%); opacity: 0; }
+          50% { opacity: 1; }
+          100% { transform: translateY(100%); opacity: 0; }
+        }
+
+        .scan-line {
+          position: absolute;
+          width: 100%;
+          height: 2px;
+          background: linear-gradient(to right, transparent, #3b82f6, transparent);
+          animation: scan 3s linear infinite;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(0, 0, 0, 0.1);
+          border-radius: 10px;
+        }
+        html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.1);
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div class="mesh-gradient"></div>
+    <div id="root"></div>
+<script type="module" src="/src/main.tsx"></script>
+</body>
+</html>
