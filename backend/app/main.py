@@ -6,18 +6,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from app.core.database import database
+from app.core.database import engine
 from app.api.v1.router import api_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用程序生命周期事件"""
-    # 启动时
-    await database.connect()
+    # 启动时：SQLAlchemy 引擎自动管理连接池，无需显式连接
     yield
-    # 关闭时
-    await database.disconnect()
+    # 关闭时：清理连接池资源
+    await engine.dispose()
 
 
 # 创建 FastAPI 应用实例

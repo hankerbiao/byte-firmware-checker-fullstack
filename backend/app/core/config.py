@@ -15,7 +15,6 @@ class Settings(BaseSettings):
 
     # 数据库配置
     DATABASE_URL: str = "sqlite+aiosqlite:///./app.db"
-    # PostgreSQL 示例: postgresql+asyncpg://user:password@localhost:5432/dbname
 
     # JWT 安全配置
     SECRET_KEY: str = "your-secret-key-change-in-production"
