@@ -1,43 +1,39 @@
-"""
-应用程序配置设置
-"""
+import os
+import sys
+from pathlib import Path
 
-from functools import lru_cache
-from pydantic_settings import BaseSettings
-
-
-class Settings(BaseSettings):
-    """应用程序设置类"""
-    # 应用基本配置
-    APP_NAME: str = "FastAPI 模板项目"
-    VERSION: str = "1.0.0"
-    DEBUG: bool = False
-
-    # 数据库配置
-    DATABASE_URL: str = "sqlite+aiosqlite:///./app.db"
-
-    # JWT 安全配置
-    SECRET_KEY: str = "your-secret-key-change-in-production"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    ALGORITHM: str = "HS256"
-
-    # API 配置
-    API_V1_STR: str = "/api/v1"
-
-    # 密码哈希配置
-    PWD_CONTEXT: str = "bcrypt"
-
-    class Config:
-        """Pydantic 配置"""
-        env_file = ".env"
-        case_sensitive = True
+from pydantic import BaseModel
 
 
-@lru_cache()
-def get_settings() -> Settings:
-    """获取缓存的设置实例"""
-    return Settings()
+class Settings(BaseModel):
+    APP_NAME: str = "Firmware Check Service"
+    VERSION: str = "0.1.0"
+
+    MONGO_URI: str = os.getenv("MONGO_URI", "mongodb://10.17.154.252:27018")
+    MONGO_DB_NAME: str = os.getenv("MONGO_DB_NAME", "firmware_audit")
+
+    FWAUDIT_SCRIPT_TIMEOUT: int = int(os.getenv("FWAUDIT_SCRIPT_TIMEOUT", "3600"))
+    FWAUDIT_SCRIPT_PATH: str = os.getenv(
+        "FWAUDIT_SCRIPT_PATH",
+        str(Path(__file__).resolve().parents[1] / "CheckFWFile_v1.3.1.py"),
+    )
+    FWAUDIT_UPLOAD_DIR: str = os.getenv(
+        "FWAUDIT_UPLOAD_DIR",
+        str(Path.cwd() / "uploads"),
+    )
+    # PDF 报告输出目录：
+    # - 用于存放后端生成的审计报告 PDF 文件
+    # - 默认位于当前工作目录下的 reports 子目录
+    FWAUDIT_REPORT_DIR: str = os.getenv(
+        "FWAUDIT_REPORT_DIR",
+        str(Path.cwd() / "reports"),
+    )
+    # PDF 报告中文字体文件路径：
+    # - 可配置任意支持中文的 TTF/OTF 字体，例如 NotoSansCJK / 思源黑体
+    # - 若未配置或路径无效，则会退回使用内置的 CJK 字体 STSong-Light
+    # - 若两者都不可用则最终退回 Helvetica（此时中文会乱码）
+    FWAUDIT_PDF_FONT_PATH: str | None = os.getenv("FWAUDIT_PDF_FONT_PATH") or None
+    PYTHON_EXECUTABLE: str = os.getenv("PYTHON_EXECUTABLE", sys.executable)
 
 
-# 创建全局设置实例
-settings = get_settings()
+settings = Settings()

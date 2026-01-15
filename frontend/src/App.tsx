@@ -20,7 +20,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ShieldCheck,
   History,
-  Search,
   Moon,
   Sun,
   Bot,
@@ -37,8 +36,9 @@ import UploadZone from './components/UploadZone';
 import ComplianceReport from './components/ComplianceReport';
 
 // 导入类型定义和常量
-import { InspectionReport, FirmwareType } from './types';
-import { MOCK_CHECKLIST, MOCK_FILES } from './constants';
+import { InspectionReport, FirmwareType, CheckStatus, CheckItem } from './types';
+import { createAudit, ApiFirmwareType, getAudit, getAuditLogs, getAuditReport, ConsoleLog as ApiConsoleLog, AuditReportDto, AuditTask, listAudits } from './api/client';
+import { MOCK_REPORT_META } from './constants';
 
 // ============================================================================
 // 类型定义
@@ -114,7 +114,8 @@ const NavBar: React.FC<{
   darkMode: boolean;
   toggleTheme: () => void;
   onReset: () => void;
-}> = React.memo(({ darkMode, toggleTheme, onReset }) => (
+  onToggleHistory: () => void;
+}> = React.memo(({ darkMode, toggleTheme, onReset, onToggleHistory }) => (
   <nav className="w-full max-w-7xl px-8 h-20 flex items-center justify-between z-40 sticky top-0 backdrop-blur-md bg-white/70 dark:bg-slate-900/70 border-b border-slate-200 dark:border-white/5 transition-colors">
     {/* 品牌区域 - 点击可重置应用 */}
     <div
@@ -143,16 +144,6 @@ const NavBar: React.FC<{
 
     {/* 右侧工具栏 */}
     <div className="flex items-center gap-3">
-      {/* 搜索框 - 仅在大屏幕显示 */}
-      <div className="hidden lg:flex items-center gap-3 px-4 py-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 mr-2">
-        <Search size={14} className="text-slate-400" />
-        <input
-          placeholder="搜索审计单..."
-          className="bg-transparent border-none text-xs dark:text-white text-slate-900 focus:outline-none w-32 placeholder:text-slate-400 font-bold"
-          aria-label="搜索审计单"
-        />
-      </div>
-
       {/* 主题切换按钮 */}
       <button
         onClick={toggleTheme}
@@ -166,13 +157,11 @@ const NavBar: React.FC<{
       <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1"></div>
 
       {/* 审计历史按钮 - 中等屏幕以上显示 */}
-      <button className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition-all">
+      <button
+        className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition-all"
+        onClick={onToggleHistory}
+      >
         <History size={18} /> 审计历史
-      </button>
-
-      {/* 控制台按钮 */}
-      <button className="bg-blue-600 text-white px-6 py-2.5 rounded-2xl text-sm font-black transition-all shadow-lg shadow-blue-600/20 hover:scale-[1.02] active:scale-95">
-        控制台
       </button>
     </div>
   </nav>
@@ -197,14 +186,15 @@ const Footer: React.FC = React.memo(() => (
       <div className="px-3 py-1 bg-green-500/10 text-green-600 dark:text-green-500 rounded-lg border border-green-500/20">
         System Online
       </div>
-      通用固件合规审计平台 v4.2.0
+      字节固件合规审计平台 v1.0.0
     </div>
 
     {/* 右侧: 链接和版权 */}
     <div className="flex items-center gap-10">
-      <a href="#" className="hover:text-blue-600 dark:hover:text-white transition-all">隐私与合规</a>
-      <a href="#" className="hover:text-blue-600 dark:hover:text-white transition-all">审计准则</a>
-      <p className="text-slate-300 dark:text-slate-800 opacity-50">© 2025 Core Intelligence Hub</p>
+      <p className="text-emerald-300 dark:text-emerald-300 opacity-70">光圈@libiao1</p>
+      <p className="text-slate-200 dark:text-slate-500 normal-case tracking-normal">
+        注意：认知分析是本产品的设计目标
+      </p>
     </div>
   </footer>
 ));
@@ -212,66 +202,8 @@ const Footer: React.FC = React.memo(() => (
 Footer.displayName = 'Footer';
 
 // ============================================================================
-// 模拟数据生成器 - 实际项目中可替换为 API 调用
-// ============================================================================
-
-/**
- * 生成模拟分析日志序列
- *
- * 描述:
- *   - 这是一个模拟数据生成器，用于演示 AI 审计引擎的工作过程
- *   - 实际项目中应替换为真实的 API 调用
- *
- * @returns 模拟日志数组
- */
-const generateMockAnalysisLogs = (): ConsoleLog[] => {
-  const baseLogs: ConsoleLog[] = [
-    { message: '正在初始化审计环境...', timestamp: new Date(), level: 'info' },
-    { message: '文件完整性校验开始...', timestamp: new Date(), level: 'info' },
-    { message: '正在解压资源包...', timestamp: new Date(), level: 'info' },
-    { message: '识别到 BIOS 固件镜像 (32MB)', timestamp: new Date(), level: 'info' },
-    { message: '正在提取哈希摘要: SHA-256...', timestamp: new Date(), level: 'debug' },
-    { message: '开始目录结构合规性扫描...', timestamp: new Date(), level: 'info' },
-    { message: '正在分析 Release Note 文本内容...', timestamp: new Date(), level: 'info' },
-    { message: '识别到子目录命名异常: /Tools/中文路径', timestamp: new Date(), level: 'warn' },
-    { message: '执行跨文档一致性比对逻辑...', timestamp: new Date(), level: 'info' },
-    { message: '正在调用 NIST SP 800 知识库比对...', timestamp: new Date(), level: 'info' },
-    { message: '审计任务核心流程执行完毕', timestamp: new Date(), level: 'success' },
-    { message: '正在整理并生成 PDF 报告单...', timestamp: new Date(), level: 'info' },
-  ];
-
-  return baseLogs;
-};
-
-/**
- * 生成模拟审计报告
- *
- * 描述:
- *   - 创建符合 InspectionReport 类型的模拟数据
- *   - 用于演示报告生成功能
- *
- * @returns 模拟的审计报告对象
- */
-const generateMockReport = (): InspectionReport => {
-  const now = new Date();
-
-  return {
-    id: `AUDIT-${now.getTime().toString().slice(-6)}`,
-    timestamp: now.toLocaleString(),
-    firmwareType: FirmwareType.BIOS,
-    productName: 'Alpha-Core 企业级服务器',
-    version: 'v5.2.0-LTS 稳定版',
-    overallScore: 91,  // 91分 - 表示高度合规
-    checks: MOCK_CHECKLIST,
-    fileStructure: MOCK_FILES,
-    trend: { fix: 5, new: 2 },  // 修复5个问题，新增2个问题
-  };
-};
-
-// ============================================================================
 // 主应用组件
 // ============================================================================
-
 /**
  * App - 智能固件合规审计系统主组件
  *
@@ -311,12 +243,20 @@ const App: React.FC = () => {
 
   /** 分析过程中的日志序列 */
   const [analysisLogs, setAnalysisLogs] = useState<ConsoleLog[]>([]);
+  const [currentAuditId, setCurrentAuditId] = useState<string | null>(null);
 
   /** 日志容器底部引用，用于自动滚动 */
   const logEndRef = useRef<HTMLDivElement>(null);
 
   /** 分析阶段相关的定时器引用，便于在重置或卸载时统一清理 */
   const analysisTimeoutsRef = useRef<number[]>([]);
+
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [auditHistory, setAuditHistory] = useState<AuditTask[]>([]);
 
   // --------------------------------------------------------------------------
   // Effects
@@ -363,6 +303,92 @@ const App: React.FC = () => {
     analysisTimeoutsRef.current = [];
   }, []);
 
+  const mapApiLogs = (logs: ApiConsoleLog[]): ConsoleLog[] => {
+    return logs.map(log => ({
+      message: log.message,
+      timestamp: new Date(log.timestamp),
+      level: (log.level as any) || 'info',
+    }));
+  };
+
+  useEffect(() => {
+    if (!currentAuditId || phase !== 'analyzing') return;
+
+    const lastLogTimestampRef = { current: null as string | null };
+
+    const intervalId = window.setInterval(async () => {
+      try {
+        let audit: AuditTask | null = null;
+        try {
+          audit = await getAudit(currentAuditId);
+        } catch (err) {
+          console.error('[audit] getAudit failed', err);
+        }
+
+        try {
+          const logs = await getAuditLogs(currentAuditId, lastLogTimestampRef.current || undefined);
+          if (logs.length > 0) {
+            const newLogs = mapApiLogs(logs);
+            setAnalysisLogs(prev => [...prev, ...newLogs]);
+            const lastRaw = logs[logs.length - 1];
+            lastLogTimestampRef.current = lastRaw.timestamp;
+          }
+        } catch (err) {
+          console.error('[audit] getAuditLogs failed', err);
+        }
+
+        if (audit && (audit.status === 'COMPLETED' || audit.status === 'FAILED')) {
+          try {
+            const report = await getAuditReport(currentAuditId);
+            const mappedReport = mapApiReport(report);
+            setCurrentReport(mappedReport);
+          } catch (err) {
+            console.error('Failed to fetch audit report', err);
+          }
+          setPhase('report');
+          window.clearInterval(intervalId);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [currentAuditId, phase]);
+
+  const mapApiReport = (dto: AuditReportDto): InspectionReport => {
+    const checks: CheckItem[] = dto.checks.map(c => ({
+      id: c.id,
+      category: c.category,
+      name: c.name,
+      status:
+        c.status === 'PASS'
+          ? CheckStatus.PASS
+          : c.status === 'WARNING'
+          ? CheckStatus.WARNING
+          : CheckStatus.FAIL,
+      description: c.description,
+      standard: c.standard,
+    }));
+
+    const summary = dto.summary || { total: 0, passed: 0, warning: 0, failed: 0 };
+    const overallScore = summary.total > 0 ? Math.max(0, Math.round(((summary.passed + summary.warning * 0.5) / summary.total) * 100)) : 0;
+
+    return {
+      id: dto.id,
+      timestamp: dto.timestamp,
+      firmwareType: dto.firmwareType === 'BMC' ? FirmwareType.BMC : dto.firmwareType === 'BIOS' ? FirmwareType.BIOS : FirmwareType.UNKNOWN,
+      productName: dto.productName,
+      version: dto.version,
+      overallScore,
+      checks,
+      fileStructure: [],
+      trend: { fix: 0, new: 0 },
+    };
+  };
+
   useEffect(() => {
     return () => {
       clearAnalysisTimers();
@@ -373,11 +399,25 @@ const App: React.FC = () => {
   // 回调函数
   // --------------------------------------------------------------------------
 
+  const loadAuditHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const res = await listAudits({ limit: 20, offset: 0 });
+      setAuditHistory(res.items || []);
+    } catch (e) {
+      setHistoryError('加载审计历史失败');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
   /**
    * 开始分析处理函数
    *
    * 功能:
    *   - 接收用户上传的文件
+   *   - 接收用户选择的固件类型
    *   - 切换到分析阶段
    *   - 模拟 AI 引擎的分析过程
    *   - 生成并显示分析日志
@@ -388,37 +428,73 @@ const App: React.FC = () => {
    *   - 实际项目中应替换为真实的 API 调用
    *
    * @param files - 用户上传的文件数组
+   * @param firmwareType - 用户选择的固件类型 (AMI | OpenBMC)
+   * @param checkScript - 用户选择的检查脚本文件名
    */
-  const handleStartAnalysis = useCallback((_files: File[]) => {
-    // 确保重新开始分析前清理掉历史定时器，避免状态被过期回调污染
-    clearAnalysisTimers();
+  const handleStartAnalysis = useCallback(
+    async (files: File[], firmwareType: 'AMI' | 'OpenBMC', checkScript: string) => {
+      if (!files.length) return;
 
-    // 1. 切换到分析阶段
-    setPhase('analyzing');
+      setIsProcessing(true);
 
-    // 2. 初始化日志
-    const initialLogs = generateMockAnalysisLogs();
-    setAnalysisLogs([initialLogs[0], initialLogs[1]]);
+      try {
+        const mappedFirmwareType: ApiFirmwareType =
+          firmwareType === 'OpenBMC' ? 'BMC' : 'BIOS';
 
-    // 3. 模拟逐条输出日志
-    const remainingLogs = initialLogs.slice(2);
-    remainingLogs.forEach((log, index) => {
-      const timeoutId = window.setTimeout(() => {
-        setAnalysisLogs(prev => [...prev, log]);
-      }, ANALYSIS_CONFIG.logInterval * (index + 1));
+        const audit = await createAudit({
+          file: files[0],
+          firmwareType: mappedFirmwareType,
+          bmcType: firmwareType,
+          checkScript,
+          productName: MOCK_REPORT_META.productName,
+          version: MOCK_REPORT_META.version,
+        });
+        setCurrentAuditId(audit.id);
+        clearAnalysisTimers();
+        setAnalysisLogs([]);
+        setPhase('analyzing');
+      } catch (error) {
+        console.error(error);
+        clearAnalysisTimers();
+        setPhase('upload');
+        setCurrentReport(null);
+        setAnalysisLogs([]);
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [clearAnalysisTimers]
+  );
 
-      analysisTimeoutsRef.current.push(timeoutId);
-    });
+  const handleToggleHistory = useCallback(() => {
+    if (!showHistoryPanel && auditHistory.length === 0) {
+      loadAuditHistory();
+    }
+    setShowHistoryPanel(prev => !prev);
+  }, [showHistoryPanel, auditHistory.length, loadAuditHistory]);
 
-    // 4. 模拟分析完成，生成报告
-    const reportTimeoutId = window.setTimeout(() => {
-      const report = generateMockReport();
-      setCurrentReport(report);
-      setPhase('report');
-    }, ANALYSIS_CONFIG.totalDuration);
+  const handleSelectAuditFromHistory = useCallback(
+    async (task: AuditTask) => {
+      setShowHistoryPanel(false);
+      setCurrentAuditId(task.id);
+      clearAnalysisTimers();
+      setAnalysisLogs([]);
 
-    analysisTimeoutsRef.current.push(reportTimeoutId);
-  }, [clearAnalysisTimers]);
+      if (task.status === 'COMPLETED' || task.status === 'FAILED') {
+        try {
+          const report = await getAuditReport(task.id);
+          const mappedReport = mapApiReport(report);
+          setCurrentReport(mappedReport);
+          setPhase('report');
+        } catch (err) {
+          console.error('Failed to load audit report from history', err);
+        }
+      } else {
+        setPhase('analyzing');
+      }
+    },
+    [clearAnalysisTimers, mapApiReport]
+  );
 
   /**
    * 重置应用状态
@@ -434,6 +510,7 @@ const App: React.FC = () => {
     setPhase('upload');
     setCurrentReport(null);
     setAnalysisLogs([]);
+    setCurrentAuditId(null);
   }, [clearAnalysisTimers]);
 
   /**
@@ -463,6 +540,28 @@ const App: React.FC = () => {
     return '';
   };
 
+  const getStatusLabel = (status: AuditTask['status']) => {
+    if (status === 'PENDING') return '排队中';
+    if (status === 'UPLOADING') return '上传中';
+    if (status === 'ANALYZING') return '分析中';
+    if (status === 'COMPLETED') return '已完成';
+    if (status === 'FAILED') return '失败';
+    return status;
+  };
+
+  const getStatusClassName = (status: AuditTask['status']) => {
+    if (status === 'COMPLETED') {
+      return 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30';
+    }
+    if (status === 'FAILED') {
+      return 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/30';
+    }
+    if (status === 'ANALYZING' || status === 'UPLOADING') {
+      return 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30';
+    }
+    return 'bg-slate-50 text-slate-500 border-slate-100 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-600/60';
+  };
+
   // --------------------------------------------------------------------------
   // 渲染逻辑
   // --------------------------------------------------------------------------
@@ -474,13 +573,14 @@ const App: React.FC = () => {
         darkMode={darkMode}
         toggleTheme={toggleTheme}
         onReset={resetApp}
+        onToggleHistory={handleToggleHistory}
       />
 
       {/* 主内容区域 */}
       <main className="w-full max-w-7xl px-8 py-10 flex-1 flex flex-col relative z-20">
         {/* 上传阶段 */}
         {phase === 'upload' && (
-          <UploadPhase onFilesAccepted={handleStartAnalysis} />
+          <UploadPhase onFilesAccepted={handleStartAnalysis} isProcessing={isProcessing} />
         )}
 
         {/* 分析阶段 */}
@@ -501,6 +601,110 @@ const App: React.FC = () => {
         )}
       </main>
 
+      {showHistoryPanel && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => setShowHistoryPanel(false)}
+          />
+          <div className="relative h-full w-full max-w-md bg-white dark:bg-slate-950 border-l border-slate-200 dark:border-white/10 shadow-2xl flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <History size={18} className="text-slate-700 dark:text-slate-100" />
+                <span className="text-sm font-bold tracking-widest text-slate-700 dark:text-slate-100">
+                  审计历史
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={loadAuditHistory}
+                  disabled={historyLoading}
+                  className="text-xs font-bold px-3 py-1.5 rounded-full border border-slate-200 dark:border-white/20 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  刷新
+                </button>
+                <button
+                  onClick={() => setShowHistoryPanel(false)}
+                  className="text-xs font-bold px-3 py-1.5 rounded-full border border-slate-200 dark:border-white/20 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/10"
+                >
+                  关闭
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {historyError && (
+                <div className="text-xs text-rose-500 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/30 rounded-2xl px-4 py-3">
+                  {historyError}
+                </div>
+              )}
+              {historyLoading && (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="animate-spin text-blue-500" size={20} />
+                </div>
+              )}
+              {!historyLoading && !historyError && auditHistory.length === 0 && (
+                <div className="text-xs text-slate-400 text-center py-10">
+                  暂无历史记录
+                </div>
+              )}
+              {!historyLoading &&
+                !historyError &&
+                auditHistory.map((task: AuditTask) => {
+                  const createdAt = task.createdAt ? new Date(task.createdAt) : null;
+                  const completedAt = task.completedAt ? new Date(task.completedAt) : null;
+                  const summary = task.summary;
+                  return (
+                    <button
+                      key={task.id}
+                      onClick={() => handleSelectAuditFromHistory(task)}
+                      className="w-full text-left p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-700/60 hover:border-blue-500/40 hover:bg-white dark:hover:bg-slate-800/80 transition-all active:scale-[0.99]"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-100">
+                            {task.productName || '未命名固件'}
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">
+                            {task.version || '未知版本'}
+                          </span>
+                        </div>
+                        <span
+                          className={
+                            'text-[10px] font-bold px-3 py-1 rounded-full border ' +
+                            getStatusClassName(task.status)
+                          }
+                        >
+                          {getStatusLabel(task.status)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-slate-400">
+                            创建时间:{' '}
+                            {createdAt ? createdAt.toLocaleString() : '未知'}
+                          </span>
+                          {completedAt && (
+                            <span className="text-[10px] text-slate-400 mt-0.5">
+                              完成时间: {completedAt.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                        {summary && (
+                          <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-300">
+                            <span>合规 {summary.passed}</span>
+                            <span>警告 {summary.warning}</span>
+                            <span>错误 {summary.failed}</span>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 底部页脚 */}
       <Footer />
     </div>
@@ -518,7 +722,10 @@ const App: React.FC = () => {
  *   - 显示应用介绍信息
  *   - 提供文件上传区域
  */
-const UploadPhase: React.FC<{ onFilesAccepted: (files: File[]) => void }> = ({ onFilesAccepted }) => {
+const UploadPhase: React.FC<{
+  onFilesAccepted: (files: File[], firmwareType: 'AMI' | 'OpenBMC', checkScript: string) => void;
+  isProcessing: boolean;
+}> = ({ onFilesAccepted, isProcessing }) => {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-16 items-center flex-1">
       {/* 左侧: 介绍信息 */}
@@ -529,13 +736,13 @@ const UploadPhase: React.FC<{ onFilesAccepted: (files: File[]) => void }> = ({ o
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-blue-600/10 dark:bg-blue-500/10 border border-blue-600/20 dark:border-blue-500/20">
             <Activity size={16} className="text-blue-600 dark:text-blue-400" />
             <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
-              符合行业标准规范
+              符合字节大客户标准规范
             </span>
           </div>
 
           {/* 主标题 */}
           <h2 className="text-6xl font-black dark:text-white text-slate-900 leading-[1.05] tracking-tight">
-            引领固件包
+            字节发版固件包
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-500">
               智能自动化
@@ -544,18 +751,14 @@ const UploadPhase: React.FC<{ onFilesAccepted: (files: File[]) => void }> = ({ o
             合规自查
           </h2>
 
-          {/* 描述文字 */}
-          <p className="text-slate-500 dark:text-slate-400 text-xl leading-relaxed font-medium">
-            基于先进的大语言模型与启发式扫描技术。秒级完成包结构审计、风险项智能预判，确保您的固件万无一失。
-          </p>
+
         </div>
 
         {/* 功能特性列表 */}
         <div className="grid grid-cols-1 gap-5">
           {[
-            { icon: BrainCircuit, title: '认知分析', desc: '基于 NLP 的非结构化测试报告深度理解' },
+            { icon: BrainCircuit, title: '认知分析', desc: '基于 AI 大模型 的非结构化测试报告深度理解' },
             { icon: Terminal, title: '结构一致性', desc: '多层级目录与命名规范自动对齐校验' },
-            { icon: Zap, title: '瞬时反馈', desc: '集成化自查，将平均评审周期缩短 70%' }
           ].map((item, index) => (
             <div
               key={index}
@@ -579,7 +782,7 @@ const UploadPhase: React.FC<{ onFilesAccepted: (files: File[]) => void }> = ({ o
 
       {/* 右侧: 上传区域 */}
       <div className="xl:col-span-7 animate-in fade-in slide-in-from-right-12 duration-1000">
-        <UploadZone onFilesAccepted={onFilesAccepted} isProcessing={false} />
+        <UploadZone onFilesAccepted={onFilesAccepted} isProcessing={isProcessing} />
       </div>
     </div>
   );
@@ -643,7 +846,7 @@ const AnalyzingPhase: React.FC<{
               <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
             </div>
             <span className="text-[10px] font-mono text-slate-500 ml-4 font-bold uppercase tracking-widest">
-              Auditor Console v4.2
+              Auditor Console v1.0
             </span>
           </div>
 

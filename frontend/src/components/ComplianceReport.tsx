@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { InspectionReport, CheckStatus, CheckItem } from '../types';
 import { CATEGORY_ICONS } from '../constants';
+import { API_BASE_URL } from '../api/client';
 
 // --- 类型定义 ---
 interface ComplianceReportProps {
@@ -63,10 +64,6 @@ const ScoreBanner: React.FC<{ report: InspectionReport; stats: { pass: number; w
             <span className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-blue-600/20">
               {report.firmwareType} Package
             </span>
-            <div className="flex gap-2">
-              <span className="px-3 py-1 bg-green-500/10 text-green-500 text-[10px] font-bold rounded-lg border border-green-500/20">修复 +{report.trend.fix}</span>
-              <span className="px-3 py-1 bg-rose-500/10 text-rose-500 text-[10px] font-bold rounded-lg border border-rose-500/20">新增 -{report.trend.new}</span>
-            </div>
           </div>
           <h2 className="text-5xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">{report.productName}</h2>
           <p className="text-lg font-bold text-slate-400 mt-2">版本迭代审计: <span className="text-blue-500">{report.version}</span></p>
@@ -75,8 +72,8 @@ const ScoreBanner: React.FC<{ report: InspectionReport; stats: { pass: number; w
         <div className="grid grid-cols-3 gap-4 md:gap-6">
           {[
             { label: '合规项', value: stats.pass, color: 'text-green-500' },
-            { label: '警告', value: stats.warning, color: 'text-amber-500' },
-            { label: '拦截', value: stats.fail, color: 'text-rose-500' }
+            { label: '错误', value: stats.fail, color: 'text-rose-500' },
+            { label: '警告', value: stats.warning, color: 'text-amber-500' }
           ].map(item => (
             <div key={item.label} className="p-5 bg-slate-50 dark:bg-white/5 rounded-[2rem] border border-slate-100 dark:border-white/5 text-center shadow-sm hover:scale-[1.02] transition-transform">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</p>
@@ -89,7 +86,6 @@ const ScoreBanner: React.FC<{ report: InspectionReport; stats: { pass: number; w
   </div>
 );
 
-// --- 子组件: 审计条目 (AuditItem) ---
 const AuditItem: React.FC<{ item: CheckItem }> = ({ item }) => (
   <div className={`${CARD_STYLE} p-8 rounded-[2.5rem] group hover:border-blue-500/30`}>
     <div className="flex items-start justify-between gap-10">
@@ -129,9 +125,168 @@ const AuditItem: React.FC<{ item: CheckItem }> = ({ item }) => (
   </div>
 );
 
+interface EvidenceShareModalProps {
+  report: InspectionReport;
+  checks: CheckItem[];
+  onClose: () => void;
+}
+
+const EvidenceShareModal: React.FC<EvidenceShareModalProps> = ({ report, checks, onClose }) => {
+  const [copied, setCopied] = useState(false);
+
+  const evidenceText = useMemo(() => {
+    const headerLines = [
+      '【固件合规审计问题证据链】',
+      '',
+      `产品: ${report.productName}`,
+      `版本: ${report.version}`,
+      `固件类型: ${report.firmwareType}`,
+      `审计时间: ${report.timestamp}`,
+      `审计任务ID: ${report.id}`,
+      '',
+    ];
+
+    const mapStatusLabel = (status: CheckStatus) => {
+      if (status === CheckStatus.FAIL) return '错误';
+      if (status === CheckStatus.WARNING) return '警告';
+      if (status === CheckStatus.PASS) return '通过';
+      if (status === CheckStatus.PENDING) return '待确认';
+      return status;
+    };
+
+    const itemsLines = checks.map((item, index) => {
+      const lines = [];
+      const statusLabel = mapStatusLabel(item.status);
+      lines.push(`${index + 1}. [${statusLabel}] ${item.category} - ${item.name}`);
+      if (item.standard) {
+        lines.push(`   规则标准: ${item.standard}`);
+      }
+      lines.push(`   问题描述: ${item.description}`);
+      if (item.suggestion) {
+        lines.push(`   整改建议: ${item.suggestion}`);
+      }
+      return lines.join('\n');
+    });
+
+    return [...headerLines, ...itemsLines].join('\n');
+  }, [report, checks]);
+
+  const handleCopy = async () => {
+    const doFallbackCopy = () => {
+      const textarea = document.createElement('textarea');
+      textarea.value = evidenceText;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '0';
+      textarea.setAttribute('readonly', 'true');
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        const ok = document.execCommand('copy');
+        if (ok) {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 2000);
+        }
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    };
+
+    const navAny = navigator as Navigator & { clipboard?: { writeText?: (text: string) => Promise<void> } };
+
+    if (window.isSecureContext && navAny.clipboard && typeof navAny.clipboard.writeText === 'function') {
+      try {
+        await navAny.clipboard.writeText(evidenceText);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2000);
+        return;
+      } catch {
+        doFallbackCopy();
+        return;
+      }
+    }
+
+    doFallbackCopy();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+      <div className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+        <div className="px-8 py-6 border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">
+              问题证据链
+            </p>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white mt-1">
+              警告与错误项精简视图
+            </h3>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleCopy}
+              className="px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest bg-blue-600 text-white hover:bg-blue-500 transition-all active:scale-95"
+            >
+              {copied ? '已复制' : '复制文本'}
+            </button>
+            <button
+              onClick={onClose}
+              className="px-3 py-2 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-all active:scale-95"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+
+        <div className="px-8 py-6 border-b border-slate-200 dark:border-white/10 flex flex-wrap gap-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+            {report.productName}
+          </span>
+          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+            版本 {report.version}
+          </span>
+          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+            {report.firmwareType}
+          </span>
+          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg:white/5 border border-slate-200 dark:border-white/10">
+            更新时间 {report.timestamp}
+          </span>
+          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+            共 {checks.length} 条问题
+          </span>
+        </div>
+
+        <div className="px-8 py-6 flex-1 overflow-auto bg-slate-50/60 dark:bg-slate-950">
+          {checks.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                当前审计无警告或错误项
+              </p>
+            </div>
+          ) : (
+            <pre className="whitespace-pre-wrap text-xs leading-relaxed font-mono text-slate-800 dark:text-slate-100">
+              {evidenceText}
+            </pre>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
   const [filter, setFilter] = useState<'all' | 'fail' | 'warn'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showEvidenceModal, setShowEvidenceModal] = useState(false);
+
+  // 导出完整审计报告为 PDF：
+  // - 依赖后端 /audits/{id}/report.pdf 接口
+  // - 使用当前报告的 id 拼接 URL，通过 window.open 打开新标签页
+  // - 浏览器行为可能是直接预览或触发下载，取决于用户设置
+  const handleExportPdf = () => {
+    if (!report.id) return;
+    const url = `${API_BASE_URL}/audits/${report.id}/report.pdf`;
+    window.open(url, '_blank');
+  };
 
   // 性能优化：使用 useMemo 缓存统计数据和过滤后的列表
   const stats = useMemo(() => ({
@@ -139,6 +294,11 @@ const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
     warning: report.checks.filter(c => c.status === CheckStatus.WARNING).length,
     fail: report.checks.filter(c => c.status === CheckStatus.FAIL).length
   }), [report.checks]);
+
+  const evidenceChecks = useMemo(
+    () => report.checks.filter(c => c.status === CheckStatus.WARNING || c.status === CheckStatus.FAIL),
+    [report.checks]
+  );
 
   const filteredChecks = useMemo(() => {
     return report.checks.filter(c => {
@@ -178,14 +338,17 @@ const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
                 {(['all', 'fail', 'warn'] as const).map(f => (
                   <button 
                     key={f}
-                    onClick={() => setFilter(f)}
+                    onClick={() => {
+                      setFilter(f);
+                      setSearchTerm('');
+                    }}
                     className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all ${
                       filter === f 
                         ? 'bg-blue-600 text-white shadow-lg' 
                         : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
-                    {f === 'all' ? '全部' : f === 'fail' ? '拦截' : '警告'}
+                    {f === 'all' ? '全部' : f === 'fail' ? '错误' : '警告'}
                   </button>
                 ))}
               </div>
@@ -194,7 +357,9 @@ const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
 
           <div className="space-y-6">
             {filteredChecks.length > 0 ? (
-              filteredChecks.map((check) => <AuditItem key={check.id} item={check} />)
+              filteredChecks.map((check, index) => (
+                <AuditItem key={`${check.id}-${index}`} item={check} />
+              ))
             ) : (
               <div className="p-20 text-center border-2 border-dashed border-slate-200 dark:border-white/5 rounded-[3rem]">
                 <p className="text-slate-400 font-black uppercase tracking-widest">未找到匹配项</p>
@@ -213,27 +378,37 @@ const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
           </div>
           
           <div className="space-y-4">
-            <button className="w-full flex items-center justify-between px-8 py-6 bg-blue-600 hover:bg-blue-500 text-white rounded-3xl font-black transition-all shadow-xl shadow-blue-600/30 group active:scale-95">
+            <button
+              className="w-full flex items-center justify-between px-8 py-6 bg-blue-600 hover:bg-blue-500 text-white rounded-3xl font-black transition-all shadow-xl shadow-blue-600/30 group active:scale-95"
+              onClick={handleExportPdf}
+            >
               <span className="flex items-center gap-3"><Download size={22} /> 导出完整报告</span>
               <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
-            <button className="w-full flex items-center justify-between px-8 py-6 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-800 dark:text-white rounded-3xl font-black transition-all group active:scale-95">
-              <span className="flex items-center gap-3"><Share2 size={22} /> 共享证据链</span>
+            <button
+              className="w-full flex items-center justify-between px-8 py-6 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-800 dark:text-white rounded-3xl font-black transition-all group active:scale-95"
+              onClick={() => setShowEvidenceModal(true)}
+            >
+              <span className="flex items-center gap-3">
+                <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white text-[10px] tracking-[0.18em]">
+                  TXT
+                </span>
+                警告与错误项精简视图
+              </span>
               <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
 
-          <div className="pt-6 p-6 bg-slate-50 dark:bg-white/5 rounded-[2.5rem] border border-slate-100 dark:border-white/5">
-            <div className="flex items-center gap-3 mb-4 text-slate-400">
-               <ShieldCheck size={20} className="text-green-500" />
-               <span className="text-[10px] font-black uppercase tracking-widest">数字指纹校验</span>
-            </div>
-            <p className="text-[10px] font-mono text-slate-500 break-all leading-relaxed bg-white/40 dark:bg-black/20 p-3 rounded-xl border border-slate-100 dark:border-white/5">
-              Hash: {report.fileStructure[0]?.hash || 'N/A'}
-            </p>
-          </div>
         </div>
       </div>
+
+      {showEvidenceModal && (
+        <EvidenceShareModal
+          report={report}
+          checks={evidenceChecks}
+          onClose={() => setShowEvidenceModal(false)}
+        />
+      )}
     </div>
   );
 };

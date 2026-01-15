@@ -1,1 +1,5 @@
-"""API v1 模块"""
+from .endpoints import router
+
+
+__all__ = ["router"]
+

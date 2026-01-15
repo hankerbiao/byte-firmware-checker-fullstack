@@ -43,3 +43,25 @@ export const MOCK_FILES = [
   { path: '/docs/release_info.md', size: '12KB', type: 'Document', hash: 'f832...a11b' },
   { path: '/logs/boot_sequence.txt', size: '45KB', type: 'Log', hash: 'd0e1...b5c6' },
 ];
+
+export const MOCK_REPORT_META = {
+  productName: 'Alpha-Core 企业级服务器',
+  version: 'v5.2.0-LTS 稳定版',
+  overallScore: 91,
+  trend: { fix: 5, new: 2 },
+} as const;
+
+export const MOCK_ANALYSIS_LOGS = [
+  { message: '正在初始化审计环境...', level: 'info' as const },
+  { message: '文件完整性校验开始...', level: 'info' as const },
+  { message: '正在解压资源包...', level: 'info' as const },
+  { message: '识别到 BIOS 固件镜像 (32MB)', level: 'info' as const },
+  { message: '正在提取哈希摘要: SHA-256...', level: 'debug' as const },
+  { message: '开始目录结构合规性扫描...', level: 'info' as const },
+  { message: '正在分析 Release Note 文本内容...', level: 'info' as const },
+  { message: '识别到子目录命名异常: /Tools/中文路径', level: 'warn' as const },
+  { message: '执行跨文档一致性比对逻辑...', level: 'info' as const },
+  { message: '正在调用 NIST SP 800 知识库比对...', level: 'info' as const },
+  { message: '审计任务核心流程执行完毕', level: 'success' as const },
+  { message: '正在整理并生成 PDF 报告单...', level: 'info' as const },
+] as const;

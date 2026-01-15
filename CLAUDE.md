@@ -44,20 +44,21 @@ app/
 
 ## Common Commands
 
-### Frontend (React/TypeScript/Vite)
+### Frontend (React 19 + TypeScript + Vite)
 
 ```bash
-# Install dependencies
-npm install
+# Install dependencies (uses pnpm)
+cd frontend
+pnpm install
 
 # Start development server (port 3000)
-npm run dev
+pnpm run dev
 
 # Build for production
-npm run build
+pnpm run build
 
 # Preview production build
-npm run preview
+pnpm run preview
 ```
 
 **Requires:** `GEMINI_API_KEY` in `frontend/.env.local`
@@ -196,21 +197,45 @@ DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/dbname"
 
 **Environment variables:** Configure in `backend/.env`
 
-## Frontend Features
+## Frontend Architecture
 
-The React frontend includes:
-- **Dark/Light theme** toggle
-- **Firmware upload** zone
-- **Compliance reporting** dashboard
-- **AI-powered audit** capabilities
-- **Search & history** functionality
+### Frontend Structure
 
-**Main Components:**
-- `App.tsx` - Main application
-- `UploadZone.tsx` - File upload handling
-- `ComplianceReport.tsx` - Audit results display
-- `Header.tsx` - Navigation bar
-- `Sidebar.tsx` - Side navigation
+```
+frontend/src/
+├── api/              # API client & endpoints
+├── assets/           # Static assets
+├── components/       # Reusable UI components
+│   ├── Header.tsx    # Navigation header
+│   ├── Sidebar.tsx   # Side navigation
+│   ├── UploadZone.tsx # File upload handling
+│   ├── ComplianceReport.tsx # Audit results display
+│   └── auth.tsx      # Authentication components
+├── constants/        # Mock data & constants
+├── hooks/            # Custom React hooks
+├── pages/            # Page components
+├── types/            # TypeScript type definitions
+├── utils/            # Utility functions
+└── App.tsx           # Main application (workflow: upload → analyzing → report)
+```
+
+### Frontend Tech Stack
+- **React 19** with TypeScript
+- **Vite 6** for build tooling
+- **Lucide React** for icons
+- **Recharts** for data visualization
+
+### Key Features
+- **Dark/Light theme** toggle (persisted to localStorage)
+- **Firmware upload** zone with drag-and-drop
+- **AI-powered audit** workflow with real-time console logs
+- **Compliance reporting** dashboard with scoring
+- **Responsive design** with Tailwind-like classes
+
+### Component Patterns
+- Use `React.memo()` for performance optimization
+- Use `useCallback()` for callback memoization
+- Phase-based state machine: `upload` | `analyzing` | `report`
 
 ## Key Files to Reference
 
@@ -223,15 +248,16 @@ The React frontend includes:
 - `backend/PROJECT_SUMMARY.md` - Detailed architecture documentation
 
 ### Backend Core
-- `app/main.py` - FastAPI application entry
-- `app/core/config.py` - Settings & environment management
-- `app/core/database.py` - Database connection & session management
-- `app/core/security.py` - JWT & password security
-- `app/repositories/base_repository.py` - Generic CRUD repository
+- `backend/app/main.py` - FastAPI application entry
+- `backend/app/core/config.py` - Settings & environment management
+- `backend/app/core/database.py` - Database connection & session management
+- `backend/app/core/security.py` - JWT & password security
+- `backend/app/repositories/base_repository.py` - Generic CRUD repository
 
 ### Frontend Configuration
-- `frontend/package.json` - NPM dependencies & scripts
+- `frontend/package.json` - Dependencies & scripts (uses pnpm)
 - `frontend/vite.config.ts` - Vite configuration
+- `frontend/tsconfig.json` - TypeScript configuration
 - `frontend/.env.local` - Environment variables (requires GEMINI_API_KEY)
 
 ## Development Workflow
@@ -246,16 +272,19 @@ make run
 
 # Frontend (in another terminal)
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ### 2. Running Tests
 
 ```bash
+# Backend tests
 cd backend
 make test        # Quick tests
 make test-cov    # With coverage report
+
+# Frontend - no test runner configured yet
 ```
 
 ### 3. Database Operations
@@ -301,12 +330,20 @@ make format # Fix code style
 
 ## Architecture Decisions
 
+### Backend (FastAPI)
 - **Repository Pattern**: Decouples business logic from data access
 - **Service Layer**: Encapsulates complex business operations
 - **Dependency Injection**: Leverages FastAPI's built-in DI system
 - **Async SQLAlchemy**: Non-blocking database operations
 - **Pydantic v2**: Type validation & serialization
-- **Clean Architecture**: Clear separation of concerns
+- **Clean Architecture**: Clear separation of concerns (API → Service → Repository → DB)
+
+### Frontend (React 19)
+- **Component Composition**: Small, focused components with clear props
+- **Phase-based State Machine**: Workflow states (`upload` → `analyzing` → `report`)
+- **Performance**: Use `React.memo()` for static components, `useCallback()` for callbacks
+- **TypeScript**: Strict typing for props, state, and API responses
+- **Mock-driven Development**: Simulation functions (`generateMockReport`, `generateMockAnalysisLogs`) for demo data
 
 ## Resources
 
