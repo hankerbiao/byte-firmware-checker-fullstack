@@ -1,8 +1,11 @@
-// 后端 API 基础地址：
-// - 通过 window.location.hostname 适配不同环境的主机名（本地 / 测试 / 线上）
-// - 端口固定为 8000，对应 FastAPI 服务
-// - 统一为其他 API 封装函数提供前缀，避免各处硬编码 URL
-export const API_BASE_URL = `http://10.2.51.52:8000/api/v1`;
+const DEV_API_BASE_URL = 'http://10.2.51.52:8000/api/v1';
+const PROD_API_BASE_URL = '/api/v1';
+
+export const API_BASE_URL =
+  (import.meta as any).env?.VITE_API_BASE_URL ??
+  (((import.meta as any).env?.MODE ?? import.meta.env.MODE) === 'development'
+    ? DEV_API_BASE_URL
+    : PROD_API_BASE_URL);
 
 export type ApiFirmwareType = 'BMC' | 'BIOS' | 'UNKNOWN';
 export type BmcType = 'AMI' | 'OpenBMC' | 'Self';
