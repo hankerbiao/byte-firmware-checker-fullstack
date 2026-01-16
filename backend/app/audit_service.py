@@ -265,6 +265,253 @@ class AuditService:
             "checks": checks,
         }
 
+    def init_chunked_audit_upload(
+        self,
+        original_filename: str | None,
+        firmware_type: str,
+        product_name: str | None,
+        version: str | None,
+        bmc_type: str,
+        script_name: str | None,
+        total_size: int,
+        total_chunks: int,
+        chunk_size: int,
+    ) -> dict:
+        if total_size <= 0 or total_chunks <= 0 or chunk_size <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid chunk upload parameters",
+            )
+
+        base_name = original_filename or "firmware.zip"
+        safe_name = os.path.basename(base_name)
+        safe_name = safe_name.replace(os.sep, "_")
+        if os.altsep:
+            safe_name = safe_name.replace(os.altsep, "_")
+        if not safe_name.lower().endswith(".zip"):
+            safe_name = f"{safe_name}.zip"
+
+        upload_id = uuid.uuid4().hex
+
+        base_dir = Path(settings.FWAUDIT_UPLOAD_DIR)
+        chunk_root = base_dir / "chunk_uploads"
+        chunk_dir = chunk_root / upload_id
+        try:
+            chunk_dir.mkdir(parents=True, exist_ok=False)
+        except FileExistsError:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to initialize upload directory",
+            )
+
+        effective_script_name = script_name or Path(settings.FWAUDIT_SCRIPT_PATH).name
+        doc = {
+            "uploadId": upload_id,
+            "firmwareType": firmware_type,
+            "productName": product_name,
+            "version": version,
+            "bmcType": bmc_type,
+            "checkScript": effective_script_name,
+            "totalSize": int(total_size),
+            "totalChunks": int(total_chunks),
+            "chunkSize": int(chunk_size),
+            "createdAt": self._utc_now_iso(),
+            "originalFilename": safe_name,
+        }
+        self.db["audit_uploads"].update_one(
+            {"uploadId": upload_id},
+            {"$set": doc},
+            upsert=True,
+        )
+        return {"uploadId": upload_id}
+
+    async def append_chunk_to_upload(
+        self,
+        upload_id: str,
+        chunk_index: int,
+        total_chunks: int,
+        chunk_file: UploadFile,
+    ) -> None:
+        meta = self.db["audit_uploads"].find_one({"uploadId": upload_id})
+        if not meta:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Upload session not found",
+            )
+
+        expected_total = int(meta.get("totalChunks", 0))
+        if expected_total <= 0 or expected_total != int(total_chunks):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Chunk count mismatch",
+            )
+
+        if chunk_index < 0 or chunk_index >= expected_total:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid chunk index",
+            )
+
+        base_dir = Path(settings.FWAUDIT_UPLOAD_DIR)
+        chunk_root = base_dir / "chunk_uploads"
+        chunk_dir = chunk_root / upload_id
+        if not chunk_dir.is_dir():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Upload directory not found",
+            )
+
+        part_path = chunk_dir / f"{chunk_index:06d}.part"
+
+        try:
+            with part_path.open("wb") as f:
+                while True:
+                    data = await chunk_file.read(1024 * 1024)
+                    if not data:
+                        break
+                    f.write(data)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("[upload %s] 写入分片失败(%s): %s", upload_id, chunk_index, exc)
+            if part_path.exists():
+                try:
+                    part_path.unlink()
+                except Exception:  # noqa: BLE001
+                    pass
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to store chunk",
+            ) from exc
+
+    async def finalize_chunked_audit_upload(
+        self,
+        background_tasks: BackgroundTasks,
+        upload_id: str,
+    ) -> dict:
+        meta = self.db["audit_uploads"].find_one({"uploadId": upload_id})
+        if not meta:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Upload session not found",
+            )
+
+        base_dir = Path(settings.FWAUDIT_UPLOAD_DIR)
+        chunk_root = base_dir / "chunk_uploads"
+        chunk_dir = chunk_root / upload_id
+        if not chunk_dir.is_dir():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Upload directory not found",
+            )
+
+        total_chunks = int(meta.get("totalChunks", 0))
+        if total_chunks <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid upload metadata",
+            )
+
+        for index in range(total_chunks):
+            if not (chunk_dir / f"{index:06d}.part").is_file():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Missing chunk",
+                )
+
+        audit_id = uuid.uuid4().hex
+        upload_dir = base_dir / audit_id
+        upload_dir.mkdir(parents=True, exist_ok=False)
+
+        filename = str(meta.get("originalFilename") or f"{audit_id}.zip")
+        target_path = upload_dir / filename
+
+        try:
+            with target_path.open("wb") as dest:
+                for index in range(total_chunks):
+                    part_path = chunk_dir / f"{index:06d}.part"
+                    with part_path.open("rb") as src:
+                        while True:
+                            buf = src.read(1024 * 1024)
+                            if not buf:
+                                break
+                            dest.write(buf)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("[upload %s] 合并分片失败: %s", upload_id, exc)
+            if target_path.exists():
+                try:
+                    target_path.unlink()
+                except Exception:  # noqa: BLE001
+                    pass
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to assemble uploaded file",
+            ) from exc
+
+        now = self._utc_now_iso()
+        audit_doc = {
+            "id": audit_id,
+            "status": "PENDING",
+            "createdAt": now,
+            "completedAt": None,
+            "firmwareType": meta.get("firmwareType"),
+            "productName": meta.get("productName"),
+            "version": meta.get("version"),
+            "checkScript": meta.get("checkScript"),
+            "summary": {
+                "total": 0,
+                "passed": 0,
+                "warning": 0,
+                "failed": 0,
+            },
+        }
+        try:
+            self.db["audits"].update_one({"id": audit_id}, {"$set": audit_doc}, upsert=True)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("[audit %s] 初始化审计文档失败: %s", audit_id, exc)
+            if target_path.exists():
+                try:
+                    target_path.unlink()
+                except Exception:  # noqa: BLE001
+                    pass
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to initialize audit task",
+            ) from exc
+
+        background_tasks.add_task(
+            self.run_check_script,
+            audit_id=audit_id,
+            zip_path=str(target_path),
+            bmc_type=str(meta.get("bmcType") or ""),
+        )
+
+        try:
+            self.db["audit_uploads"].delete_one({"uploadId": upload_id})
+        except Exception as exc:  # noqa: BLE001
+            logger.error("[upload %s] 清理上传会话元数据失败: %s", upload_id, exc)
+
+        try:
+            for index in range(total_chunks):
+                part_path = chunk_dir / f"{index:06d}.part"
+                if part_path.exists():
+                    try:
+                        part_path.unlink()
+                    except Exception:  # noqa: BLE001
+                        pass
+            try:
+                chunk_dir.rmdir()
+            except Exception:  # noqa: BLE001
+                pass
+        except Exception as exc:  # noqa: BLE001
+            logger.error("[upload %s] 清理分片目录失败: %s", upload_id, exc)
+
+        return {
+            "id": audit_id,
+            "status": "PENDING",
+            "firmwareType": audit_doc["firmwareType"],
+            "productName": audit_doc["productName"],
+            "version": audit_doc["version"],
+        }
+
     def generate_audit_report_pdf(self, audit_id: str) -> str | None:
         """
         为指定审计任务生成 PDF 审计报告。

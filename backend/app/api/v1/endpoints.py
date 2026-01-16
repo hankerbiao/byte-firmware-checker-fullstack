@@ -1,8 +1,10 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, status, Form, BackgroundTasks, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Form, BackgroundTasks, Query, Request, Depends
 from fastapi.responses import JSONResponse, FileResponse
+from pydantic import BaseModel
 from pymongo import MongoClient
 
 from app.audit_service import AuditService
+from app.auth_service import AuthService
 from app.core.config import settings
 
 
@@ -28,14 +30,41 @@ def get_mongo_db():
 
 
 def get_audit_service() -> AuditService:
-    """
-    构造审计业务服务对象。
-
-    当前实现直接基于 Mongo 数据库句柄创建服务实例，
-    如未来需要接入依赖注入框架，可以在此统一扩展。
-    """
     db = get_mongo_db()
     return AuditService(db)
+
+
+def get_auth_service() -> AuthService:
+    db = get_mongo_db()
+    return AuthService(db)
+
+
+class ChunkInitRequest(BaseModel):
+    fileName: str | None = None
+    firmwareType: str = "UNKNOWN"
+    productName: str | None = None
+    version: str | None = None
+    bmcType: str = "OpenBMC"
+    checkScript: str | None = "CheckFWFile_v1.3.1.py"
+    totalSize: int
+    totalChunks: int
+    chunkSize: int
+
+
+class ChunkCompleteRequest(BaseModel):
+    uploadId: str
+
+
+class OALoginRequest(BaseModel):
+    status: str
+    payload: str
+    next: str | None = None
+
+
+def get_current_user(request: Request) -> dict:
+    service = get_auth_service()
+    token = request.headers.get("X-Session-Token")
+    return service.require_login(token)
 
 
 @router.post(
@@ -44,6 +73,7 @@ def get_audit_service() -> AuditService:
 )
 async def create_audit(
     background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
     file: UploadFile = File(...),
     firmwareType: str = Form("UNKNOWN"),
     productName: str | None = Form(None),
@@ -69,12 +99,83 @@ async def create_audit(
     return JSONResponse(status_code=status.HTTP_201_CREATED, content=response_body)
 
 
+@router.post("/audits/chunk-init")
+async def init_audit_chunk_upload(
+    payload: ChunkInitRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    service = get_audit_service()
+    data = service.init_chunked_audit_upload(
+        original_filename=payload.fileName,
+        firmware_type=payload.firmwareType,
+        product_name=payload.productName,
+        version=payload.version,
+        bmc_type=payload.bmcType,
+        script_name=payload.checkScript,
+        total_size=payload.totalSize,
+        total_chunks=payload.totalChunks,
+        chunk_size=payload.chunkSize,
+    )
+    return data
+
+
+@router.post("/audits/chunk")
+async def upload_audit_chunk(
+    current_user: dict = Depends(get_current_user),
+    uploadId: str = Form(...),
+    chunkIndex: int = Form(...),
+    totalChunks: int = Form(...),
+    chunk: UploadFile = File(...),
+):
+    service = get_audit_service()
+    await service.append_chunk_to_upload(
+        upload_id=uploadId,
+        chunk_index=chunkIndex,
+        total_chunks=totalChunks,
+        chunk_file=chunk,
+    )
+    return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+
+
+@router.post(
+    "/audits/chunk-complete",
+    status_code=status.HTTP_201_CREATED,
+)
+async def complete_audit_chunk_upload(
+    payload: ChunkCompleteRequest,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    service = get_audit_service()
+    response_body = await service.finalize_chunked_audit_upload(
+        background_tasks=background_tasks,
+        upload_id=payload.uploadId,
+    )
+    return JSONResponse(status_code=status.HTTP_201_CREATED, content=response_body)
+
+
+@router.post("/auth/oa/callback")
+async def oa_login_callback(payload: OALoginRequest):
+    service = get_auth_service()
+    return service.handle_oa_callback(
+        status_value=payload.status,
+        payload_token=payload.payload,
+        next_url=payload.next,
+    )
+
+
+@router.get("/auth/me")
+async def get_me(current_user: dict = Depends(get_current_user)):
+    return current_user
+
+
 @router.get("/audits")
 async def list_audits(
     status: list[str] | None = Query(None),
     firmwareType: str | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     查询审计任务历史列表。
@@ -93,7 +194,10 @@ async def list_audits(
 
 
 @router.get("/audits/{audit_id}")
-async def get_audit(audit_id: str):
+async def get_audit(
+    audit_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
     根据审计 ID 获取单条审计文档。
 
@@ -109,6 +213,7 @@ async def get_audit(audit_id: str):
 @router.get("/audits/{audit_id}/logs")
 async def get_audit_logs(
     audit_id: str,
+    current_user: dict = Depends(get_current_user),
     limit: int = Query(200, ge=1, le=1000),
     since: str | None = None,
 ):
@@ -123,7 +228,10 @@ async def get_audit_logs(
 
 
 @router.get("/audits/{audit_id}/report")
-async def get_audit_report(audit_id: str):
+async def get_audit_report(
+    audit_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
     基于审计主文档与检查结果集合构建一份“综合审计报告”视图。
 
@@ -137,7 +245,10 @@ async def get_audit_report(audit_id: str):
 
 
 @router.get("/audits/{audit_id}/report.pdf")
-async def get_audit_report_pdf(audit_id: str):
+async def get_audit_report_pdf(
+    audit_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
     为指定审计任务返回后端生成的 PDF 审计报告。
 

@@ -38,6 +38,7 @@ interface UploadZoneProps {
   onFilesAccepted: (files: File[], firmwareType: FirmwareType, checkScript: string) => void;
   /** 是否正在处理中（上传按钮禁用状态） */
   isProcessing: boolean;
+  isLoggedIn: boolean;
 }
 
 /**
@@ -191,7 +192,8 @@ const isFileAccepted = (
  */
 const UploadZone: React.FC<UploadZoneProps> = React.memo(({
   onFilesAccepted,
-  isProcessing
+  isProcessing,
+  isLoggedIn
 }) => {
   // --------------------------------------------------------------------------
   // 状态定义
@@ -351,9 +353,13 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
     e.preventDefault();
     e.stopPropagation();
 
+    if (!isLoggedIn) {
+      return;
+    }
+
     const isActive = e.type === 'dragenter' || e.type === 'dragover';
     setDragActive(isActive);
-  }, []);
+  }, [isLoggedIn]);
 
   /**
    * 处理文件放置
@@ -369,6 +375,10 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
     e.preventDefault();
     e.stopPropagation();
 
+    if (!isLoggedIn) {
+      return;
+    }
+
     setDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
@@ -380,7 +390,7 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
         setUploadProgress(null);
       }
     }
-  }, [appendFiles, validateFiles, isProcessing, onFilesAccepted, firmwareType, checkScript]);
+  }, [appendFiles, validateFiles, isLoggedIn, isProcessing, onFilesAccepted, firmwareType, checkScript]);
 
   /**
    * 处理文件选择输入
@@ -393,6 +403,10 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
    * @param e - 文件输入变化事件
    */
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isLoggedIn) {
+      return;
+    }
+
     if (e.target.files && e.target.files.length > 0) {
       const validFiles = validateFiles(Array.from(e.target.files));
 
@@ -408,7 +422,7 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
         fileInputRef.current.value = '';
       }
     }
-  }, [appendFiles, validateFiles, isProcessing, onFilesAccepted, firmwareType, checkScript]);
+  }, [appendFiles, validateFiles, isLoggedIn, isProcessing, onFilesAccepted, firmwareType, checkScript]);
 
   /**
    * 移除单个文件
@@ -440,11 +454,15 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
   };
 
   const handleZoneKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!isLoggedIn) {
+      return;
+    }
+
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       fileInputRef.current?.click();
     }
-  }, []);
+  }, [isLoggedIn]);
 
   // --------------------------------------------------------------------------
   // 渲染
@@ -460,7 +478,7 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
         onDragOver={handleDrag}
         onDrop={handleDrop}
         onClick={() => {
-          if (!isProcessing) {
+          if (!isProcessing && isLoggedIn) {
             fileInputRef.current?.click();
           }
         }}
@@ -480,7 +498,7 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
           accept=".zip"
           className="hidden"
           onChange={handleFileInput}
-          disabled={isProcessing}
+          disabled={isProcessing || !isLoggedIn}
           aria-hidden="true"
         />
 
@@ -536,7 +554,7 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
                   onKeyDown={(e) => {
                     e.stopPropagation(); // 阻止键盘事件冒泡
                   }}
-                  disabled={isProcessing}
+                  disabled={isProcessing || !isLoggedIn}
                   className={`
                     px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all
                     ${firmwareType === option.value
@@ -566,7 +584,7 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
                 // 阻止点击冒泡，避免误触发文件选择
                 e.stopPropagation();
               }}
-              disabled={isProcessing}
+              disabled={isProcessing || !isLoggedIn}
               className="
                 px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest
                 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10
@@ -609,6 +627,17 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
             </div>
           )}
         </div>
+
+        {!isLoggedIn && (
+          <div
+            className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm rounded-[2.5rem] flex flex-col items-center justify-center z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <AlertCircle size={48} className="text-rose-500 mb-4" />
+            <h4 className="text-xl font-black text-white mb-2">请先登录</h4>
+            <p className="text-slate-300 text-sm">未登录状态下无法使用导入审计功能</p>
+          </div>
+        )}
       </div>
 
       {/* 文件列表和提交按钮已移除：上传有效文件后自动触发分析 */}

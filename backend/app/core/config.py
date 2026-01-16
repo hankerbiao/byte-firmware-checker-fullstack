@@ -34,6 +34,15 @@ class Settings(BaseModel):
     # - 若两者都不可用则最终退回 Helvetica（此时中文会乱码）
     FWAUDIT_PDF_FONT_PATH: str | None = os.getenv("FWAUDIT_PDF_FONT_PATH") or None
     PYTHON_EXECUTABLE: str = os.getenv("PYTHON_EXECUTABLE", sys.executable)
+    OA_JWT_SECRET: str = os.getenv("OA_JWT_SECRET", "YWNnw5hwP1e3tSFx6CFYeRvWRSSJhRiC")
+    OA_APP_NAME: str = os.getenv("OA_APP_NAME", "bytespkgcheck")
+    OA_LOGIN_BASE_URL: str = os.getenv(
+        "OA_LOGIN_BASE_URL",
+        "http://tl.cooacloud.com/springboard_v3/login_proxy",
+    )
+    SESSION_EXPIRE_HOURS: int = int(os.getenv("SESSION_EXPIRE_HOURS", "8"))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
+    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30"))
 
 
 settings = Settings()

@@ -28,7 +28,9 @@ import {
   Activity,
   Zap,
   ChevronLeft,
-  Loader2
+  Loader2,
+  LogIn,
+  User
 } from 'lucide-react';
 
 // 导入子组件
@@ -37,7 +39,7 @@ import ComplianceReport from './components/ComplianceReport';
 
 // 导入类型定义和常量
 import { InspectionReport, FirmwareType, CheckStatus, CheckItem } from './types';
-import { createAudit, ApiFirmwareType, getAudit, getAuditLogs, getAuditReport, ConsoleLog as ApiConsoleLog, AuditReportDto, AuditTask, listAudits } from './api/client';
+import { createAuditChunked, ApiFirmwareType, getAudit, getAuditLogs, getAuditReport, ConsoleLog as ApiConsoleLog, AuditReportDto, AuditTask, listAudits, getHealth, submitOALogin, setSessionToken, restoreSessionTokenFromStorage, getCurrentUser } from './api/client';
 import { MOCK_REPORT_META } from './constants';
 
 // ============================================================================
@@ -90,6 +92,9 @@ const THEME_CONFIG = {
   storageKey: 'core-audit-theme',  // localStorage 中的键名
 };
 
+const OA_APP_NAME = 'bytespkgcheck';
+const OA_LOGIN_BASE_URL = 'http://tl.cooacloud.com/springboard_v3/login_proxy';
+
 // ============================================================================
 // 子组件定义
 // ============================================================================
@@ -115,7 +120,11 @@ const NavBar: React.FC<{
   toggleTheme: () => void;
   onReset: () => void;
   onToggleHistory: () => void;
-}> = React.memo(({ darkMode, toggleTheme, onReset, onToggleHistory }) => (
+  healthy: boolean | null;
+  onLogin: () => void;
+  loggedIn: boolean;
+  userName?: string | null;
+}> = React.memo(({ darkMode, toggleTheme, onReset, onToggleHistory, healthy, onLogin, loggedIn, userName }) => (
   <nav className="w-full max-w-7xl px-8 h-20 flex items-center justify-between z-40 sticky top-0 backdrop-blur-md bg-white/70 dark:bg-slate-900/70 border-b border-slate-200 dark:border-white/5 transition-colors">
     {/* 品牌区域 - 点击可重置应用 */}
     <div
@@ -134,17 +143,28 @@ const NavBar: React.FC<{
           Core <span className="text-blue-600 dark:text-blue-400">Audit</span>
         </h1>
         <div className="flex items-center gap-1.5 mt-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+          <span
+            className={
+              'w-1.5 h-1.5 rounded-full animate-pulse ' +
+              (healthy === false
+                ? 'bg-rose-500'
+                : healthy === true
+                ? 'bg-green-500'
+                : 'bg-slate-400')
+            }
+          />
           <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 font-bold">
-            AI 审计引擎在线
+            {healthy === null
+              ? 'AI 审计引擎检查中'
+              : healthy
+              ? 'AI 审计引擎在线'
+              : 'AI 审计引擎异常'}
           </p>
         </div>
       </div>
     </div>
 
-    {/* 右侧工具栏 */}
     <div className="flex items-center gap-3">
-      {/* 主题切换按钮 */}
       <button
         onClick={toggleTheme}
         className="p-3 bg-slate-50 dark:bg-white/5 rounded-2xl hover:scale-105 transition-all border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300"
@@ -153,16 +173,32 @@ const NavBar: React.FC<{
         {darkMode ? <Sun size={20} /> : <Moon size={20} />}
       </button>
 
-      {/* 分隔线 */}
       <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1"></div>
 
-      {/* 审计历史按钮 - 中等屏幕以上显示 */}
       <button
         className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition-all"
         onClick={onToggleHistory}
       >
         <History size={18} /> 审计历史
       </button>
+
+      {!loggedIn && (
+        <button
+          className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-full bg-blue-600 text-white hover:bg-blue-500 transition-all"
+          onClick={onLogin}
+        >
+          <LogIn size={16} />
+          <span>OA 登录</span>
+        </button>
+      )}
+      {loggedIn && (
+        <div className="flex items-center gap-2 pl-1 pr-4 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-sm">
+          <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-inner">
+            <User size={14} />
+          </div>
+          <span>你好{userName ? ` ${userName}` : ''}</span>
+        </div>
+      )}
     </div>
   </nav>
 ));
@@ -179,12 +215,20 @@ NavBar.displayName = 'NavBar';
  *
  * @module Footer
  */
-const Footer: React.FC = React.memo(() => (
+const Footer: React.FC<{ healthy: boolean | null }> = React.memo(({ healthy }) => (
   <footer className="w-full max-w-7xl px-8 py-12 border-t border-slate-200 dark:border-white/5 flex flex-col md:flex-row justify-between items-center text-slate-400 text-[11px] gap-8 mt-auto font-black uppercase tracking-[0.25em]">
     {/* 左侧: 系统状态和版本 */}
     <div className="flex items-center gap-4">
-      <div className="px-3 py-1 bg-green-500/10 text-green-600 dark:text-green-500 rounded-lg border border-green-500/20">
-        System Online
+      <div
+        className={
+          healthy === false
+            ? 'px-3 py-1 bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-lg border border-rose-500/30'
+            : healthy === true
+            ? 'px-3 py-1 bg-green-500/10 text-green-600 dark:text-green-500 rounded-lg border border-green-500/20'
+            : 'px-3 py-1 bg-slate-200/40 text-slate-500 dark:text-slate-400 rounded-lg border border-slate-300/40'
+        }
+      >
+        {healthy === null ? 'Checking...' : healthy ? 'System Online' : 'System Error'}
       </div>
       字节固件合规审计平台 v1.0.0
     </div>
@@ -257,6 +301,8 @@ const App: React.FC = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [auditHistory, setAuditHistory] = useState<AuditTask[]>([]);
+  const [healthy, setHealthy] = useState<boolean | null>(null);
+  const [oaUser, setOaUser] = useState<unknown | null>(null);
 
   // --------------------------------------------------------------------------
   // Effects
@@ -270,11 +316,79 @@ const App: React.FC = () => {
    *   - 同时保存到 localStorage 持久化
    */
   useEffect(() => {
+    restoreSessionTokenFromStorage();
+    getCurrentUser()
+      .then(current => {
+        setOaUser(current.user ?? null);
+      })
+      .catch(err => {
+        if ((err as Error).message === 'UNAUTHORIZED') {
+          setOaUser(null);
+        } else {
+          console.error('Failed to restore OA user', err);
+        }
+      });
+  }, []);
+
+  useEffect(() => {
     const theme = darkMode ? 'dark' : 'light';
     document.documentElement.classList.toggle('dark', darkMode);
     document.documentElement.classList.toggle('light', !darkMode);
     localStorage.setItem(THEME_CONFIG.storageKey, theme);
   }, [darkMode]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const status = url.searchParams.get('status');
+    const payload = url.searchParams.get('payload');
+    const next = url.searchParams.get('next');
+
+    if (!status || !payload) {
+      return;
+    }
+
+    submitOALogin({
+      status,
+      payload,
+      next,
+    })
+      .then(result => {
+        setOaUser(result.user ?? null);
+        if (result.token) {
+          setSessionToken(result.token);
+        }
+
+        url.searchParams.delete('status');
+        url.searchParams.delete('payload');
+        url.searchParams.delete('next');
+        window.history.replaceState(null, '', url.toString());
+      })
+      .catch(error => {
+        console.error('OA 登录失败', error);
+      });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await getHealth();
+        if (!cancelled) {
+          setHealthy(res.status === 'ok');
+        }
+      } catch {
+        if (!cancelled) {
+          setHealthy(false);
+        }
+      }
+    };
+    check();
+    const id = window.setInterval(check, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
 
   /**
    * 自动滚动到底部 Effect
@@ -301,6 +415,12 @@ const App: React.FC = () => {
       window.clearTimeout(timeoutId);
     });
     analysisTimeoutsRef.current = [];
+  }, []);
+
+  const handleOALogin = useCallback(() => {
+    const next = window.location.origin;
+    const target = `${OA_LOGIN_BASE_URL}/${encodeURIComponent(OA_APP_NAME)}?next=${encodeURIComponent(next)}`;
+    window.location.href = target;
   }, []);
 
   const mapApiLogs = (logs: ApiConsoleLog[]): ConsoleLog[] => {
@@ -405,8 +525,12 @@ const App: React.FC = () => {
     try {
       const res = await listAudits({ limit: 20, offset: 0 });
       setAuditHistory(res.items || []);
-    } catch (e) {
-      setHistoryError('加载审计历史失败');
+    } catch (e: any) {
+      if (e && e.message === 'UNAUTHORIZED') {
+        setHistoryError('加载审计历史失败：未登录，请先通过 OA 登录');
+      } else {
+        setHistoryError('加载审计历史失败');
+      }
     } finally {
       setHistoryLoading(false);
     }
@@ -441,7 +565,7 @@ const App: React.FC = () => {
         const mappedFirmwareType: ApiFirmwareType =
           firmwareType === 'OpenBMC' ? 'BMC' : 'BIOS';
 
-        const audit = await createAudit({
+        const audit = await createAuditChunked({
           file: files[0],
           firmwareType: mappedFirmwareType,
           bmcType: firmwareType,
@@ -544,8 +668,8 @@ const App: React.FC = () => {
     if (status === 'PENDING') return '排队中';
     if (status === 'UPLOADING') return '上传中';
     if (status === 'ANALYZING') return '分析中';
-    if (status === 'COMPLETED') return '已完成';
-    if (status === 'FAILED') return '失败';
+    if (status === 'COMPLETED') return '通过';
+    if (status === 'FAILED') return '不通过';
     return status;
   };
 
@@ -562,6 +686,12 @@ const App: React.FC = () => {
     return 'bg-slate-50 text-slate-500 border-slate-100 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-600/60';
   };
 
+  const navUserName = (() => {
+    if (!oaUser) return null;
+    const anyUser = oaUser as any;
+    return anyUser.姓名;
+  })();
+
   // --------------------------------------------------------------------------
   // 渲染逻辑
   // --------------------------------------------------------------------------
@@ -574,13 +704,21 @@ const App: React.FC = () => {
         toggleTheme={toggleTheme}
         onReset={resetApp}
         onToggleHistory={handleToggleHistory}
+        healthy={healthy}
+        onLogin={handleOALogin}
+        loggedIn={oaUser != null}
+        userName={navUserName}
       />
 
       {/* 主内容区域 */}
       <main className="w-full max-w-7xl px-8 py-10 flex-1 flex flex-col relative z-20">
         {/* 上传阶段 */}
         {phase === 'upload' && (
-          <UploadPhase onFilesAccepted={handleStartAnalysis} isProcessing={isProcessing} />
+          <UploadPhase
+            onFilesAccepted={handleStartAnalysis}
+            isProcessing={isProcessing || healthy === false}
+            loggedIn={oaUser != null}
+          />
         )}
 
         {/* 分析阶段 */}
@@ -706,7 +844,7 @@ const App: React.FC = () => {
       )}
 
       {/* 底部页脚 */}
-      <Footer />
+      <Footer healthy={healthy} />
     </div>
   );
 };
@@ -725,7 +863,8 @@ const App: React.FC = () => {
 const UploadPhase: React.FC<{
   onFilesAccepted: (files: File[], firmwareType: 'AMI' | 'OpenBMC', checkScript: string) => void;
   isProcessing: boolean;
-}> = ({ onFilesAccepted, isProcessing }) => {
+  loggedIn: boolean;
+}> = ({ onFilesAccepted, isProcessing, loggedIn }) => {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-16 items-center flex-1">
       {/* 左侧: 介绍信息 */}
@@ -782,7 +921,7 @@ const UploadPhase: React.FC<{
 
       {/* 右侧: 上传区域 */}
       <div className="xl:col-span-7 animate-in fade-in slide-in-from-right-12 duration-1000">
-        <UploadZone onFilesAccepted={onFilesAccepted} isProcessing={isProcessing} />
+        <UploadZone onFilesAccepted={onFilesAccepted} isProcessing={isProcessing} isLoggedIn={loggedIn} />
       </div>
     </div>
   );
