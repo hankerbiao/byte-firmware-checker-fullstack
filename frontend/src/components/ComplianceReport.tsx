@@ -149,7 +149,6 @@ const EvidenceShareModal: React.FC<EvidenceShareModalProps> = ({ report, checks,
       `产品: ${report.productName}`,
       `版本: ${report.version}`,
       `固件类型: ${report.firmwareType}`,
-      `审计时间: ${report.timestamp}`,
       `审计任务ID: ${report.id}`,
       '',
     ];
@@ -200,7 +199,9 @@ const EvidenceShareModal: React.FC<EvidenceShareModalProps> = ({ report, checks,
       }
     };
 
-    const navAny = navigator as Navigator & { clipboard?: { writeText?: (text: string) => Promise<void> } };
+    const navAny = navigator as Navigator & {
+      clipboard?: { writeText?: (text: string) => Promise<void> };
+    };
 
     if (window.isSecureContext && navAny.clipboard && typeof navAny.clipboard.writeText === 'function') {
       try {
@@ -238,27 +239,25 @@ const EvidenceShareModal: React.FC<EvidenceShareModalProps> = ({ report, checks,
             </button>
             <button
               onClick={onClose}
-              className="px-3 py-2 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-all active:scale-95"
+              className="px-3 py-2 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg白/10 transition-all active:scale-95"
             >
               关闭
             </button>
           </div>
         </div>
 
-        <div className="px-8 py-6 border-b border-slate-200 dark:border-white/10 flex flex-wrap gap-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+        <div className="px-8 py-6 border-b border-slate-200 dark:border白/10 flex flex-wrap gap-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg白/5 border border-slate-200 dark:border白/10">
             {report.productName}
           </span>
-          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg白/5 border border-slate-200 dark:border白/10">
             版本 {report.version}
           </span>
-          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg白/5 border border-slate-200 dark:border白/10">
             {report.firmwareType}
           </span>
-          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
-            更新时间 {report.timestamp}
-          </span>
-          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+
+          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg白/5 border border-slate-200 dark:border白/10">
             共 {checks.length} 条问题
           </span>
         </div>
@@ -285,6 +284,17 @@ const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
   const [filter, setFilter] = useState<'all' | 'fail' | 'warn'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
+
+  useEffect(() => {
+    if (!showEvidenceModal) {
+      return;
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showEvidenceModal]);
 
   const handleExportPdf = async () => {
     if (!report.id) return;

@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, List, Tuple
+import datetime
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -178,6 +179,22 @@ def generate_audit_report_pdf_file(audit_id: str, report: dict[str, Any]) -> str
 
     # 2. Metadata Table
     report_id = str(report.get("id", ""))
+
+    def format_timestamp(value: str) -> str:
+        if not value:
+            return ""
+        raw = value
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        try:
+            dt = datetime.datetime.fromisoformat(raw)
+        except Exception:
+            return value
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+        dt_local = dt.astimezone(datetime.timezone(datetime.timedelta(hours=8)))
+        return dt_local.strftime("%Y-%m-%d %H:%M:%S")
+
     timestamp = str(report.get("timestamp", ""))
     firmware_type = str(report.get("firmwareType", ""))
     product_name = str(report.get("productName", ""))
@@ -259,23 +276,36 @@ def generate_audit_report_pdf_file(audit_id: str, report: dict[str, Any]) -> str
     # 4. Detailed Checks Section
     checks = report.get("checks") or []
 
-    warning_checks = [c for c in checks if str(c.get("status", "")).upper() == "WARNING"]
-    failed_checks = [c for c in checks if str(c.get("status", "")).upper() == "FAIL"]
+    indexed_checks: List[tuple[int, dict[str, Any]]] = [
+        (idx + 1, c) for idx, c in enumerate(checks)
+    ]
 
-    def build_issue_table(issue_checks: List[dict[str, Any]], title_text: str):
+    warning_checks: List[tuple[int, dict[str, Any]]] = [
+        (index, c)
+        for index, c in indexed_checks
+        if str(c.get("status", "")).upper() == "WARNING"
+    ]
+    failed_checks: List[tuple[int, dict[str, Any]]] = [
+        (index, c)
+        for index, c in indexed_checks
+        if str(c.get("status", "")).upper() == "FAIL"
+    ]
+
+    def build_issue_table(issue_checks: List[tuple[int, dict[str, Any]]], title_text: str):
         if not issue_checks:
             return
 
         story.append(Paragraph(title_text, style_h2))
 
         table_data = [[
+            Paragraph("序号/No.", style_table_header),
             Paragraph("类别/Category", style_table_header),
             Paragraph("检查内容/Details", style_table_header),
         ]]
 
         row_styles_local: List[Tuple[Any, ...]] = []
 
-        for i, check in enumerate(issue_checks):
+        for row_idx, (index_value, check) in enumerate(issue_checks, start=1):
             category = str(check.get("category", ""))
             name = str(check.get("name", ""))
             description = check.get("description", "")
@@ -283,6 +313,14 @@ def generate_audit_report_pdf_file(audit_id: str, report: dict[str, Any]) -> str
 
             category_para = Paragraph(category, ParagraphStyle(
                 'WarnErrCategoryCell',
+                parent=style_normal,
+                alignment=TA_CENTER,
+                textColor=color_text_secondary,
+                fontSize=9
+            ))
+
+            index_para = Paragraph(str(index_value), ParagraphStyle(
+                'WarnErrIndexCell',
                 parent=style_normal,
                 alignment=TA_CENTER,
                 textColor=color_text_secondary,
@@ -297,16 +335,16 @@ def generate_audit_report_pdf_file(audit_id: str, report: dict[str, Any]) -> str
                 details_flowables.append(Paragraph(f"<b>规范/Standard:</b> {standard}", style_check_desc))
 
             table_data.append([
+                index_para,
                 category_para,
                 details_flowables,
             ])
 
-            row_idx = i + 1
             row_styles_local.append(('LINEBELOW', (0, row_idx), (-1, row_idx), 0.5, color_border))
 
         t_issues = Table(
             table_data,
-            colWidths=[35 * mm, 140 * mm],
+            colWidths=[18 * mm, 35 * mm, 122 * mm],
             hAlign='CENTER'
         )
 
@@ -332,6 +370,7 @@ def generate_audit_report_pdf_file(audit_id: str, report: dict[str, Any]) -> str
     story.append(Paragraph("详细检查项 / Detailed Checks", style_h2))
 
     check_table_data = [[
+        Paragraph("序号/No.", style_table_header),
         Paragraph("状态/Status", style_table_header),
         Paragraph("类别/Category", style_table_header),
         Paragraph("检查内容/Details", style_table_header),
@@ -358,17 +397,22 @@ def generate_audit_report_pdf_file(audit_id: str, report: dict[str, Any]) -> str
 
         bg_color, text_color, status_label = get_status_props(status)
 
-        # Status Cell
+        index_para = Paragraph(str(i + 1), ParagraphStyle(
+            'CheckIndexCell',
+            parent=style_normal,
+            alignment=TA_CENTER,
+            textColor=color_text_secondary,
+            fontSize=9,
+        ))
+
         status_para = Paragraph(status_label, ParagraphStyle(
             'StatusCell', parent=style_normal, alignment=TA_CENTER, textColor=text_color, fontName=title_font
         ))
         
-        # Category Cell
         category_para = Paragraph(category, ParagraphStyle(
             'CategoryCell', parent=style_normal, alignment=TA_CENTER, textColor=color_text_secondary, fontSize=9
         ))
 
-        # Details Cell (Name + Desc + Standard)
         details_flowables = [Paragraph(name, style_check_name)]
         if description:
             details_flowables.append(Paragraph(description, style_check_desc))
@@ -377,20 +421,19 @@ def generate_audit_report_pdf_file(audit_id: str, report: dict[str, Any]) -> str
             details_flowables.append(Paragraph(f"<b>规范/Standard:</b> {standard}", style_check_desc))
 
         check_table_data.append([
+            index_para,
             status_para,
             category_para,
             details_flowables
         ])
 
-        # Style for this row
         row_idx = i + 1
-        row_styles.append(('BACKGROUND', (0, row_idx), (0, row_idx), bg_color)) # Color status cell background
-        row_styles.append(('LINEBELOW', (0, row_idx), (-1, row_idx), 0.5, color_border)) # Divider
+        row_styles.append(('BACKGROUND', (1, row_idx), (1, row_idx), bg_color))
+        row_styles.append(('LINEBELOW', (0, row_idx), (-1, row_idx), 0.5, color_border))
 
-    # Table Setup
     t_checks = Table(
         check_table_data,
-        colWidths=[25 * mm, 35 * mm, 115 * mm],
+        colWidths=[15 * mm, 25 * mm, 35 * mm, 100 * mm],
         repeatRows=1,
         hAlign='CENTER'
     )

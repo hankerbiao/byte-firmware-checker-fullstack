@@ -2,7 +2,7 @@ import logging
 import os
 import subprocess
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +41,22 @@ class AuditService:
         以保证排序与比较行为的一致性。
         """
         return datetime.now(timezone.utc).isoformat()
+
+    @staticmethod
+    def _format_timestamp_local(value: str | None) -> str | None:
+        if not value:
+            return None
+        raw = str(value)
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        try:
+            dt = datetime.fromisoformat(raw)
+        except Exception:
+            return raw
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        dt_local = dt.astimezone(timezone(timedelta(hours=8)))
+        return dt_local.strftime("%Y-%m-%d %H:%M:%S")
 
     def _mark_audit_failed(self, audit_id: str, reason: str) -> None:
         """
@@ -259,9 +275,11 @@ class AuditService:
         audit = self.db["audits"].find_one({"id": audit_id}, {"_id": 0})
         if not audit:
             return None
+        raw_timestamp = audit.get("completedAt") or audit.get("createdAt")
+        friendly_timestamp = self._format_timestamp_local(raw_timestamp)
         return {
             "id": audit_id,
-            "timestamp": audit.get("completedAt") or audit.get("createdAt"),
+            "timestamp": friendly_timestamp or raw_timestamp,
             "firmwareType": audit.get("firmwareType"),
             "productName": audit.get("productName"),
             "version": audit.get("version"),

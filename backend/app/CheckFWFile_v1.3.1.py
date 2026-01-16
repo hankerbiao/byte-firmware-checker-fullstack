@@ -722,7 +722,7 @@ def test_operation_tool():
                                         st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH),
                                         f"运维工具权限检查: {script} (权限: {oct(st_mode)})",
                                         test_name,
-                                        category="24: 运维工具"
+                                        category="运维工具"
                                     )
                                 )
                 os.unlink(temp_path)  # 清理临时文件

@@ -2,13 +2,13 @@ export enum CheckStatus {
   PASS = 'PASS',
   WARNING = 'WARNING',
   FAIL = 'FAIL',
-  PENDING = 'PENDING'
+  PENDING = 'PENDING',
 }
 
 export enum FirmwareType {
   BMC = 'BMC',
   BIOS = 'BIOS',
-  UNKNOWN = 'UNKNOWN'
+  UNKNOWN = 'UNKNOWN',
 }
 
 export interface CheckItem {
@@ -33,9 +33,9 @@ export interface InspectionReport {
   trend: { fix: number; new: number };
 }
 
-export interface AnalysisSummary {
-  total: number;
-  pass: number;
-  warning: number;
-  fail: number;
+export interface ConsoleLog {
+  message: string;
+  timestamp: Date;
+  level: 'info' | 'warn' | 'success' | 'error' | 'debug';
 }
+

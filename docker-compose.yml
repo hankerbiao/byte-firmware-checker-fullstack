@@ -1,0 +1,79 @@
+services:
+  # MongoDB 数据库服务
+  mongodb:
+    image: mongo:7
+    container_name: firmware-audit-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: firmware_audit
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: firmware-audit-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017
+      - MONGO_DB_NAME=firmware_audit
+      - FWAUDIT_SCRIPT_PATH=/app/CheckFWFile_v1.3.1.py
+      - FWAUDIT_UPLOAD_DIR=/app/uploads
+      - FWAUDIT_REPORT_DIR=/app/reports
+      - FWAUDIT_SCRIPT_TIMEOUT=3600
+      - PYTHON_EXECUTABLE=python
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_reports:/app/reports
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: firmware-audit-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  # MongoDB 数据持久化
+  mongodb_data:
+    driver: local
+
+  # 后端上传文件持久化
+  backend_uploads:
+    driver: local
+
+  # 后端报告文件持久化
+  backend_reports:
+    driver: local
+
+# 网络配置
+networks:
+  default:
+    name: firmware-audit-network
+    driver: bridge
