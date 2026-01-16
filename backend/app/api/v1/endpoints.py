@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, status, Form, BackgroundTasks, Query, Request, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Form, BackgroundTasks, Query, Request, Depends, Response
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 from pymongo import MongoClient
@@ -95,6 +95,8 @@ async def create_audit(
         version=version,
         bmc_type=bmcType,
         script_name=checkScript,
+        user_id=current_user.get("itcode"),
+        user_name=current_user.get("user", {}).get("name"),
     )
     return JSONResponse(status_code=status.HTTP_201_CREATED, content=response_body)
 
@@ -115,6 +117,8 @@ async def init_audit_chunk_upload(
         total_size=payload.totalSize,
         total_chunks=payload.totalChunks,
         chunk_size=payload.chunkSize,
+        user_id=current_user.get("itcode"),
+        user_name=current_user.get("user", {}).get("name"),
     )
     return data
 
@@ -134,7 +138,7 @@ async def upload_audit_chunk(
         total_chunks=totalChunks,
         chunk_file=chunk,
     )
-    return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
@@ -190,6 +194,7 @@ async def list_audits(
         firmware_type=firmwareType,
         limit=limit,
         offset=offset,
+        user_id=current_user.get("itcode"),
     )
 
 

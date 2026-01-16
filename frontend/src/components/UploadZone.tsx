@@ -433,12 +433,7 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
     setFiles(prev => prev.filter(entry => entry.id !== id));
   }, []);
 
-  /**
-   * 获取拖拽区域的动态样式类名
-   *
-   * @returns 样式类名字符串
-   */
-  const getZoneClassName = (): string => {
+  const getZoneClassName = useCallback((): string => {
     const baseClasses = `
       relative bg-white dark:bg-slate-900 rounded-[2.5rem] px-8 py-10
       md:px-10 md:py-12
@@ -451,17 +446,20 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
     }
 
     return `${baseClasses} border-slate-200 dark:border-white/10 hover:border-blue-400 dark:hover:bg-white/5 shadow-2xl`;
-  };
+  }, [dragActive]);
 
   const handleZoneKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' && e.key !== ' ') {
+      return;
+    }
+
+    e.preventDefault();
+
     if (!isLoggedIn) {
       return;
     }
 
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      fileInputRef.current?.click();
-    }
+    fileInputRef.current?.click();
   }, [isLoggedIn]);
 
   // --------------------------------------------------------------------------

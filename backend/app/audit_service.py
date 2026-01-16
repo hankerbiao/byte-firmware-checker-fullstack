@@ -119,6 +119,8 @@ class AuditService:
         version: str | None,
         bmc_type: str,
         script_name: str | None,
+        user_id: str | None = None,
+        user_name: str | None = None,
     ) -> dict:
         """
         创建新的固件审计任务：
@@ -182,6 +184,8 @@ class AuditService:
             "productName": product_name,
             "version": version,
             "checkScript": effective_script_name,
+            "userId": user_id,
+            "userName": user_name,
             "summary": {
                 "total": 0,
                 "passed": 0,
@@ -276,6 +280,8 @@ class AuditService:
         total_size: int,
         total_chunks: int,
         chunk_size: int,
+        user_id: str | None = None,
+        user_name: str | None = None,
     ) -> dict:
         if total_size <= 0 or total_chunks <= 0 or chunk_size <= 0:
             raise HTTPException(
@@ -317,6 +323,8 @@ class AuditService:
             "chunkSize": int(chunk_size),
             "createdAt": self._utc_now_iso(),
             "originalFilename": safe_name,
+            "userId": user_id,
+            "userName": user_name,
         }
         self.db["audit_uploads"].update_one(
             {"uploadId": upload_id},
@@ -456,6 +464,8 @@ class AuditService:
             "productName": meta.get("productName"),
             "version": meta.get("version"),
             "checkScript": meta.get("checkScript"),
+            "userId": meta.get("userId"),
+            "userName": meta.get("userName"),
             "summary": {
                 "total": 0,
                 "passed": 0,
@@ -544,6 +554,7 @@ class AuditService:
         firmware_type: str | None,
         limit: int,
         offset: int,
+        user_id: str | None = None,
     ) -> dict:
         """
         查询审计任务列表（用于审计历史）。
@@ -559,6 +570,9 @@ class AuditService:
 
         if firmware_type:
             query["firmwareType"] = firmware_type
+
+        if user_id:
+            query["userId"] = user_id
 
         total = self.db["audits"].count_documents(query)
 

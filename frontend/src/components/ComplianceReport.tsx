@@ -1,8 +1,7 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   Download, 
-  Share2, 
   CheckCircle2, 
   AlertTriangle,
   Terminal,
@@ -12,11 +11,13 @@ import {
   ShieldCheck,
   XCircle,
   Tag,
-  ChevronRight
+  ChevronRight,
+  PartyPopper,
+  Eye
 } from 'lucide-react';
 import { InspectionReport, CheckStatus, CheckItem } from '../types';
 import { CATEGORY_ICONS } from '../constants';
-import { API_BASE_URL } from '../api/client';
+import { downloadAuditReportPdf } from '../api/client';
 
 // --- 类型定义 ---
 interface ComplianceReportProps {
@@ -65,7 +66,14 @@ const ScoreBanner: React.FC<{ report: InspectionReport; stats: { pass: number; w
               {report.firmwareType} Package
             </span>
           </div>
-          <h2 className="text-5xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">{report.productName}</h2>
+          <h2 className="text-5xl font-black text-slate-900 dark:text-white leading-tight tracking-tight flex items-center gap-4">
+            {report.productName}
+            {stats.fail === 0 && stats.warning === 0 && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-800 text-xs font-black rounded-full shadow-lg shadow-yellow-400/20 animate-pulse">
+                <PartyPopper size={14} /> PERFECT
+              </span>
+            )}
+          </h2>
           <p className="text-lg font-bold text-slate-400 mt-2">版本迭代审计: <span className="text-blue-500">{report.version}</span></p>
         </div>
 
@@ -247,7 +255,7 @@ const EvidenceShareModal: React.FC<EvidenceShareModalProps> = ({ report, checks,
           <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
             {report.firmwareType}
           </span>
-          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg:white/5 border border-slate-200 dark:border-white/10">
+          <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
             更新时间 {report.timestamp}
           </span>
           <span className="px-3 py-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
@@ -278,14 +286,22 @@ const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
 
-  // 导出完整审计报告为 PDF：
-  // - 依赖后端 /audits/{id}/report.pdf 接口
-  // - 使用当前报告的 id 拼接 URL，通过 window.open 打开新标签页
-  // - 浏览器行为可能是直接预览或触发下载，取决于用户设置
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (!report.id) return;
-    const url = `${API_BASE_URL}/audits/${report.id}/report.pdf`;
-    window.open(url, '_blank');
+    try {
+      const blob = await downloadAuditReportPdf(report.id);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 60000);
+    } catch (error) {
+      const message =
+        (error as Error).message === 'UNAUTHORIZED'
+          ? '当前未登录或会话已过期，请先登录后再导出报告。'
+          : '导出报告失败，请稍后重试。';
+      window.alert(message);
+    }
   };
 
   // 性能优化：使用 useMemo 缓存统计数据和过滤后的列表
@@ -301,13 +317,16 @@ const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
   );
 
   const filteredChecks = useMemo(() => {
+    const normalizedSearch = searchTerm.toLowerCase();
     return report.checks.filter(c => {
-      const matchesFilter = 
-        filter === 'all' || 
-        (filter === 'fail' && c.status === CheckStatus.FAIL) || 
-        (filter === 'warn' && c.status === CheckStatus.WARNING);
-      const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            (c.standard?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
+      const status = String(c.status).toUpperCase();
+      const matchesFilter =
+        filter === 'all' ||
+        (filter === 'fail' && status === 'FAIL') ||
+        (filter === 'warn' && status === 'WARNING');
+      const matchesSearch =
+        c.name.toLowerCase().includes(normalizedSearch) ||
+        (c.standard?.toLowerCase().includes(normalizedSearch) ?? false);
       return matchesFilter && matchesSearch;
     });
   }, [report.checks, filter, searchTerm]);
@@ -331,6 +350,7 @@ const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="检索规则..." 
+                  aria-label="检索审计规则"
                   className="bg-transparent border-none text-xs dark:text-white text-slate-900 focus:outline-none w-24 sm:w-32 placeholder:text-slate-400 font-bold" 
                 />
               </div>
@@ -342,6 +362,7 @@ const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
                       setFilter(f);
                       setSearchTerm('');
                     }}
+                    aria-pressed={filter === f}
                     className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all ${
                       filter === f 
                         ? 'bg-blue-600 text-white shadow-lg' 
@@ -374,7 +395,6 @@ const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
         <div className={`${CARD_STYLE} p-10 rounded-[3.5rem] space-y-6`}>
           <div className="pb-6 border-b border-slate-100 dark:border-white/5">
             <h3 className="text-lg font-black dark:text-white text-slate-900 tracking-tight mb-2 uppercase">报告分发控制</h3>
-            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">审核通过后可正式签署导出</p>
           </div>
           
           <div className="space-y-4">
@@ -382,7 +402,7 @@ const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
               className="w-full flex items-center justify-between px-8 py-6 bg-blue-600 hover:bg-blue-500 text-white rounded-3xl font-black transition-all shadow-xl shadow-blue-600/30 group active:scale-95"
               onClick={handleExportPdf}
             >
-              <span className="flex items-center gap-3"><Download size={22} /> 导出完整报告</span>
+              <span className="flex items-center gap-3"><Eye size={22} /> 查看完整报告</span>
               <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
             <button

@@ -23,6 +23,8 @@ export interface AuditTask {
   productName?: string;
   version?: string;
   summary?: AuditSummary;
+  userId?: string;
+  userName?: string;
 }
 
 export interface CreateAuditParams {
@@ -347,4 +349,17 @@ export async function getAuditReport(auditId: string): Promise<AuditReportDto> {
     throw new Error('Failed to fetch audit report');
   }
   return response.json();
+}
+
+export async function downloadAuditReportPdf(auditId: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}/audits/${auditId}/report.pdf`, {
+    headers: withAuthHeaders(),
+  });
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('UNAUTHORIZED');
+    }
+    throw new Error('Failed to download audit report PDF');
+  }
+  return response.blob();
 }
