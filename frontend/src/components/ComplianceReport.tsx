@@ -327,16 +327,30 @@ const ComplianceReport: React.FC<ComplianceReportProps> = ({ report }) => {
   );
 
   const filteredChecks = useMemo(() => {
-    const normalizedSearch = searchTerm.toLowerCase();
+    const normalizedSearch = searchTerm.toLowerCase().trim();
+    const tokens = normalizedSearch.split(/\s+/).filter(Boolean);
+
     return report.checks.filter(c => {
       const status = String(c.status).toUpperCase();
       const matchesFilter =
         filter === 'all' ||
         (filter === 'fail' && status === 'FAIL') ||
         (filter === 'warn' && status === 'WARNING');
-      const matchesSearch =
-        c.name.toLowerCase().includes(normalizedSearch) ||
-        (c.standard?.toLowerCase().includes(normalizedSearch) ?? false);
+
+      if (!tokens.length) {
+        return matchesFilter;
+      }
+
+      const combined = [
+        c.name,
+        c.description ?? '',
+        c.standard ?? '',
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      const matchesSearch = tokens.every(token => combined.includes(token));
+
       return matchesFilter && matchesSearch;
     });
   }, [report.checks, filter, searchTerm]);
