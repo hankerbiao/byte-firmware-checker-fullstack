@@ -28,6 +28,6 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-@app.get("/health")
+@app.get("/api/v1/health")
 async def health():
     return {"status": "ok"}
