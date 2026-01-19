@@ -35,7 +35,12 @@ import {
  */
 interface UploadZoneProps {
   /** 文件被接受时的回调函数 */
-  onFilesAccepted: (files: File[], firmwareType: FirmwareType, checkScript: string) => void;
+  onFilesAccepted: (
+    files: File[],
+    firmwareType: FirmwareType,
+    checkScript: string,
+    onProgress: (uploadedBytes: number, totalBytes: number) => void,
+  ) => void;
   /** 是否正在处理中（上传按钮禁用状态） */
   isProcessing: boolean;
   isLoggedIn: boolean;
@@ -277,20 +282,7 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
     }));
 
     setFiles(prev => [...prev, ...newEntries]);
-    if (incomingFiles.length > 0) {
-      setUploadProgress(0);
-      let current = 0;
-      const step = () => {
-        current += 10;
-        if (current >= 90) {
-          setUploadProgress(90);
-          return;
-        }
-        setUploadProgress(current);
-        window.setTimeout(step, 150);
-      };
-      window.setTimeout(step, 150);
-    }
+    setUploadProgress(null);
   }, []);
 
   /**
@@ -385,9 +377,17 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
       const validFiles = validateFiles(Array.from(e.dataTransfer.files));
       appendFiles(validFiles);
       if (validFiles.length > 0 && !isProcessing) {
-        setUploadProgress(95);
-        onFilesAccepted(validFiles, firmwareType, checkScript);
-        setUploadProgress(null);
+        setUploadProgress(0);
+        onFilesAccepted(
+          validFiles,
+          firmwareType,
+          checkScript,
+          (uploadedBytes, totalBytes) => {
+            const ratio = totalBytes > 0 ? uploadedBytes / totalBytes : 0;
+            const percent = Math.round(ratio * 100);
+            setUploadProgress(percent);
+          },
+        );
       }
     }
   }, [appendFiles, validateFiles, isLoggedIn, isProcessing, onFilesAccepted, firmwareType, checkScript]);
@@ -413,9 +413,17 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
       appendFiles(validFiles);
 
       if (validFiles.length > 0 && !isProcessing) {
-        setUploadProgress(95);
-        onFilesAccepted(validFiles, firmwareType, checkScript);
-        setUploadProgress(null);
+        setUploadProgress(0);
+        onFilesAccepted(
+          validFiles,
+          firmwareType,
+          checkScript,
+          (uploadedBytes, totalBytes) => {
+            const ratio = totalBytes > 0 ? uploadedBytes / totalBytes : 0;
+            const percent = Math.round(ratio * 100);
+            setUploadProgress(percent);
+          },
+        );
       }
 
       if (fileInputRef.current) {

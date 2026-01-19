@@ -181,7 +181,12 @@ export const Footer: React.FC<{ healthy: boolean | null }> = React.memo(({health
 Footer.displayName = 'Footer';
 
 export const UploadPhase: React.FC<{
-    onFilesAccepted: (files: File[], firmwareType: 'AMI' | 'OpenBMC', checkScript: string) => void;
+    onFilesAccepted: (
+        files: File[],
+        firmwareType: 'AMI' | 'OpenBMC',
+        checkScript: string,
+        onProgress: (uploadedBytes: number, totalBytes: number) => void,
+    ) => void;
     isProcessing: boolean;
     loggedIn: boolean;
 }> = ({onFilesAccepted, isProcessing, loggedIn}) => {

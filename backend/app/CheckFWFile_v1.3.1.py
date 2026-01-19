@@ -161,7 +161,9 @@ def init_mongo():
 
 
 initialize_globals()
-log_file = os.path.join(script_dir, 'logs',f"{AUDIT_ID}.log")
+log_path = os.path.join(script_dir, 'logs')
+os.makedirs(log_path, exist_ok=True)
+log_file = os.path.join(log_path,f"{AUDIT_ID}.log")
 STATS = {"total": 0, "passed": 0, "warning": 0, "failed": 0}
 WORK_DIR_BASE = os.path.join(tempfile.gettempdir(), "fwcheck")
 os.makedirs(WORK_DIR_BASE, exist_ok=True)

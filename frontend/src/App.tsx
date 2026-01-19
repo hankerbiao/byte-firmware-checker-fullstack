@@ -428,7 +428,12 @@ const App: React.FC = () => {
    * @param checkScript - 用户选择的检查脚本文件名
    */
   const handleStartAnalysis = useCallback(
-    async (files: File[], firmwareType: 'AMI' | 'OpenBMC', checkScript: string) => {
+    async (
+      files: File[],
+      firmwareType: 'AMI' | 'OpenBMC',
+      checkScript: string,
+      onProgress: (uploadedBytes: number, totalBytes: number) => void,
+    ) => {
       if (!files.length) return;
 
       setIsProcessing(true);
@@ -437,14 +442,19 @@ const App: React.FC = () => {
         const mappedFirmwareType: ApiFirmwareType =
           firmwareType === 'OpenBMC' ? 'BMC' : 'BIOS';
 
-        const audit = await createAuditChunked({
-          file: files[0],
-          firmwareType: mappedFirmwareType,
-          bmcType: firmwareType,
-          checkScript,
-          productName: MOCK_REPORT_META.productName,
-          version: MOCK_REPORT_META.version,
-        });
+        const audit = await createAuditChunked(
+          {
+            file: files[0],
+            firmwareType: mappedFirmwareType,
+            bmcType: firmwareType,
+            checkScript,
+            productName: MOCK_REPORT_META.productName,
+            version: MOCK_REPORT_META.version,
+          },
+          {
+            onProgress,
+          },
+        );
         setCurrentAuditId(audit.id);
         clearAnalysisTimers();
         setAnalysisLogs([]);
