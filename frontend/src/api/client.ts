@@ -1,4 +1,4 @@
-const DEV_API_BASE_URL = 'http://10.2.51.52:8000/api/v1';
+const DEV_API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 const PROD_API_BASE_URL = '/api/v1';
 
 export const API_BASE_URL =
@@ -129,7 +129,7 @@ function withAuthHeaders(base: HeadersInit = {}): HeadersInit {
 
 export async function getHealth(): Promise<HealthStatus> {
   try {
-    const response = await fetch(`http://10.2.51.52:8000/health`);
+    const response = await fetch(`${API_BASE_URL}/health`);
     if (!response.ok) {
       return { status: 'error' };
     }
