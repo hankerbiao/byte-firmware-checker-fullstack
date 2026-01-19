@@ -17,13 +17,8 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  FileText,
-  X,
-  Sparkles,
   Box,
-  Activity,
   AlertCircle,
-  Upload
 } from 'lucide-react';
 
 // ============================================================================
@@ -138,22 +133,6 @@ const CHECK_SCRIPT_OPTIONS: CheckScriptOption[] = [
  */
 const generateFileId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-};
-
-/**
- * 格式化文件大小
- *
- * @param bytes - 文件大小（字节）
- * @returns 格式化后的大小字符串（如 "12.34 MB"）
- */
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 B';
-
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const k = 1024;
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${units[i]}`;
 };
 
 /**
@@ -432,14 +411,7 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
     }
   }, [appendFiles, validateFiles, isLoggedIn, isProcessing, onFilesAccepted, firmwareType, checkScript]);
 
-  /**
-   * 移除单个文件
-   *
-   * @param id - 要移除的文件 ID
-   */
-  const removeFile = useCallback((id: string) => {
-    setFiles(prev => prev.filter(entry => entry.id !== id));
-  }, []);
+
 
   const getZoneClassName = useCallback((): string => {
     const baseClasses = `

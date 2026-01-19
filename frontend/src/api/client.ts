@@ -216,6 +216,7 @@ export async function createAuditChunked(
   const chunkSize = options.chunkSize ?? 1024 * 1024;
   const totalSize = params.file.size;
   const totalChunks = Math.ceil(totalSize / chunkSize);
+  const totalSteps = totalChunks + 1;
 
   const initResponse = await fetch(`${API_BASE_URL}/audits/chunk-init`, {
     method: 'POST',
@@ -242,8 +243,6 @@ export async function createAuditChunked(
   const initData: { uploadId: string } = await initResponse.json();
   const uploadId = initData.uploadId;
 
-  let uploadedBytes = 0;
-
   for (let index = 0; index < totalChunks; index++) {
     const start = index * chunkSize;
     const end = Math.min(totalSize, start + chunkSize);
@@ -265,9 +264,9 @@ export async function createAuditChunked(
       throw new Error(`Failed to upload chunk ${index + 1}/${totalChunks}`);
     }
 
-    uploadedBytes = end;
     if (options.onProgress) {
-      options.onProgress(uploadedBytes, totalSize);
+      const completedSteps = index + 1;
+      options.onProgress(completedSteps, totalSteps);
     }
   }
 
@@ -281,6 +280,10 @@ export async function createAuditChunked(
 
   if (!completeResponse.ok) {
     throw new Error('Failed to complete chunked audit upload');
+  }
+
+  if (options.onProgress) {
+    options.onProgress(totalSteps, totalSteps);
   }
 
   return completeResponse.json();
