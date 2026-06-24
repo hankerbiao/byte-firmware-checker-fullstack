@@ -7,7 +7,6 @@ import {
     LogIn,
     User,
     Activity,
-    BrainCircuit,
     Terminal,
     Bot,
     Loader2,
@@ -77,10 +76,10 @@ export const NavBar: React.FC<{
               />
                             <p className="text-[9px] uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 font-bold">
                                 {healthy === null
-                                    ? 'AI 审计引擎检查中'
+                                    ? '审计引擎检查中'
                                     : healthy
-                                        ? 'AI 审计引擎在线'
-                                        : 'AI 审计引擎异常'}
+                                        ? '审计引擎在线'
+                                        : '审计引擎异常'}
                             </p>
                         </div>
                     </div>
@@ -171,9 +170,6 @@ export const Footer: React.FC<{ healthy: boolean | null }> = React.memo(({health
 
         <div className="flex items-center gap-10">
             <p className="text-emerald-300 dark:text-emerald-300 opacity-70">光圈@libiao1</p>
-            <p className="text-slate-300 dark:text-slate-500 normal-case tracking-normal">
-                注意：认知分析是本产品的设计目标
-            </p>
         </div>
     </footer>
 ));
@@ -217,7 +213,7 @@ export const UploadPhase: React.FC<{
 
                 <div className="grid grid-cols-1 gap-5">
                     {[
-                        {icon: BrainCircuit, title: '认知分析', desc: '基于 AI 大模型 的非结构化测试报告深度理解'},
+                        {icon: ShieldCheck, title: '深度分析', desc: '规则引擎驱动的结构化合规审计与语义理解'},
                         {icon: Terminal, title: '结构一致性', desc: '多层级目录与命名规范自动对齐校验'},
                     ].map((item, index) => (
                         <div
@@ -274,10 +270,10 @@ export const AnalyzingPhase: React.FC<{
 
                     <div className="space-y-4">
                         <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-                            AI 引擎深度审计中
+                            审计引擎深度分析中
                         </h2>
                         <p className="text-slate-500 dark:text-slate-400 text-lg font-medium">
-                            正在执行 Cross-Document 逻辑闭环校验...
+                            正在执行固件合规检查...
                         </p>
                     </div>
                 </div>

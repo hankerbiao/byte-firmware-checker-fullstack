@@ -7,7 +7,7 @@ export const CATEGORY_ICONS = {
   '命名规范': React.createElement(FileText, { size: 16 }),
   '升级工具': React.createElement(Zap, { size: 16 }),
   '完整性': React.createElement(Database, { size: 16 }),
-  '智能分析': React.createElement(ShieldCheck, { size: 16 }),
+  '���度分析': React.createElement(ShieldCheck, { size: 16 }),
 } as const;
 
 export const STATUS_LABELS = {
