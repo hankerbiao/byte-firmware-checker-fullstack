@@ -169,3 +169,64 @@ class AuthService:
             "itcode": session.get("itcode"),
             "user": user.get("profile") or {},
         }
+
+    def _create_admin_session(self) -> str:
+        """Create an admin session token for the admin user."""
+        from uuid import uuid4
+
+        session_id = uuid4().hex
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+
+        self.db["sessions"].insert_one(
+            {
+                "sessionId": session_id,
+                "itcode": "admin",
+                "isAdmin": True,
+                "createdAt": now.isoformat(),
+                "expiresAt": expires_at.isoformat(),
+            }
+        )
+
+        return session_id
+
+    def require_admin(self, token: str | None) -> dict:
+        """Require a valid admin session token."""
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing session token",
+            )
+
+        session = self.db["sessions"].find_one({"sessionId": token})
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid session token",
+            )
+
+        if not session.get("isAdmin"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required",
+            )
+
+        expires_at = session.get("expiresAt")
+        if expires_at is not None:
+            try:
+                exp_dt = datetime.fromisoformat(expires_at)
+                if exp_dt.tzinfo is None:
+                    exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+            except Exception:
+                exp_dt = None
+            if exp_dt is not None and datetime.now(timezone.utc) > exp_dt:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Session expired",
+                )
+
+        return {
+            "sessionId": token,
+            "itcode": "admin",
+            "isAdmin": True,
+        }

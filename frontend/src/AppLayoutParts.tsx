@@ -150,7 +150,7 @@ export const NavBar: React.FC<{
 
 NavBar.displayName = 'NavBar';
 
-export const Footer: React.FC<{ healthy: boolean | null }> = React.memo(({healthy}) => (
+export const Footer: React.FC<{ healthy: boolean | null; onFooterClick?: () => void }> = React.memo(({healthy, onFooterClick}) => (
     <footer
         className="w-full max-w-7xl px-8 py-12 border-t border-slate-200 dark:border-white/5 flex flex-col md:flex-row justify-between items-center text-slate-400 text-[11px] gap-8 mt-auto font-black uppercase tracking-[0.25em]">
         <div className="flex items-center gap-4">
@@ -165,7 +165,13 @@ export const Footer: React.FC<{ healthy: boolean | null }> = React.memo(({health
             >
                 {healthy === null ? 'Checking...' : healthy ? 'System Online' : 'System Error'}
             </div>
-            字节固件合规审计平台 v1.0.0
+            <span
+                className="cursor-pointer hover:text-blue-500 transition-colors"
+                onClick={onFooterClick}
+                title="双击查看"
+            >
+                字节固件合规审计平台 v1.0.0
+            </span>
         </div>
 
         <div className="flex items-center gap-10">

@@ -604,3 +604,97 @@ class AuditService:
         items = list(cursor)
 
         return {"items": items, "total": total}
+
+    # ------------------------------------------------------------------
+    # Statistics methods
+    # ------------------------------------------------------------------
+
+    def get_usage_stats(self) -> dict:
+        """
+        返回系统使用统计数据，面向管理层展示。
+        数据来源于 audits 集合的聚合。
+        """
+        now = datetime.now(timezone.utc)
+
+        # --- overall counts ---
+        total_audits = self.db["audits"].count_documents({})
+        completed = self.db["audits"].count_documents({"status": "COMPLETED"})
+        failed = self.db["audits"].count_documents({"status": "FAILED"})
+        analyzing = self.db["audits"].count_documents(
+            {"status": {"$in": ["ANALYZING", "PENDING", "UPLOADING"]}}
+        )
+
+        # --- pass rate among completed ---
+        pass_rate = round((completed / total_audits * 100), 1) if total_audits > 0 else 0
+
+        # --- firmware type distribution ---
+        type_pipeline = [
+            {"$group": {"_id": "$firmwareType", "count": {"$sum": 1}}},
+        ]
+        type_dist: dict[str, int] = {}
+        for doc in self.db["audits"].aggregate(type_pipeline):
+            key = doc["_id"] or "UNKNOWN"
+            type_dist[key] = doc["count"]
+
+        # --- last 7 days trend ---
+        seven_days_ago = (now - timedelta(days=7)).isoformat()
+        daily_pipeline = [
+            {"$match": {"createdAt": {"$gte": seven_days_ago}}},
+            {
+                "$group": {
+                    "_id": {
+                        "$dateToString": {
+                            "format": "%Y-%m-%d",
+                            "date": {"$dateFromString": {"dateFormat": "%Y-%m-%dT%H:%M:%S.%f%z", "dateString": "$createdAt"}},
+                        }
+                    },
+                    "count": {"$sum": 1},
+                    "passed": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "COMPLETED"]}, 1, 0]}
+                    },
+                    "failed": {
+                        "$sum": {
+                            "$cond": [{"$eq": ["$status", "FAILED"]}, 1, 0]
+                        }
+                    },
+                }
+            },
+            {"$sort": {"_id": 1}},
+        ]
+        daily_rows: list[dict] = []
+        for doc in self.db["audits"].aggregate(daily_pipeline):
+            daily_rows.append({
+                "date": doc["_id"],
+                "total": doc["count"],
+                "passed": doc["passed"],
+                "failed": doc["failed"],
+            })
+
+        # --- check category distribution ---
+        category_pipeline = [
+            {"$group": {"_id": "$category", "count": {"$sum": 1}}},
+            {"$sort": {"_id": 1}},
+        ]
+        category_dist: list[dict] = []
+        for doc in self.db["audit_checks"].aggregate(category_pipeline):
+            category_dist.append({"category": doc["_id"], "count": doc["count"]})
+
+        # --- unique users ---
+        user_pipeline = [
+            {"$match": {"userId": {"$exists": True, "$ne": None}}},
+            {"$group": {"_id": "$userId"}},
+        ]
+        unique_user_count = self.db["audits"].distinct("userId", {"userId": {"$exists": True, "$ne": None}}).__len__()
+
+        return {
+            "totalAudits": total_audits,
+            "completedAudits": completed,
+            "failedAudits": failed,
+            "analyzingAudits": analyzing,
+            "passRate": pass_rate,
+            "firmwareTypeDistribution": type_dist,
+            "dailyTrend": daily_rows,
+            "categoryDistribution": category_dist,
+            "uniqueUsers": unique_user_count,
+            "updatedAt": now.isoformat(),
+        }

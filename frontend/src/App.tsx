@@ -20,6 +20,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ShieldCheck, History, Loader2, Zap } from 'lucide-react';
 
 import { NavBar, Footer, UploadPhase, AnalyzingPhase, ReportPhase } from './AppLayoutParts';
+import AdminDashboard from './components/AdminDashboard';
 
 // 导入类型定义和常量
 import { InspectionReport, FirmwareType, CheckStatus, CheckItem, ConsoleLog } from './types';
@@ -191,6 +192,9 @@ const App: React.FC = () => {
   const [healthy, setHealthy] = useState<boolean | null>(null);
   const [oaUser, setOaUser] = useState<unknown | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [adminView, setAdminView] = useState(false);
+  const [footerClickCount, setFooterClickCount] = useState(0);
+  const footerClickTimerRef = useRef<number | null>(null);
 
   const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
@@ -530,6 +534,31 @@ const App: React.FC = () => {
     setDarkMode(prev => !prev);
   }, []);
 
+  const handleFooterClick = useCallback(() => {
+    setFooterClickCount(prev => {
+      const newCount = prev + 1;
+      if (footerClickTimerRef.current) {
+        window.clearTimeout(footerClickTimerRef.current);
+      }
+      if (newCount >= 3) {
+        setAdminView(true);
+        return 0;
+      }
+      footerClickTimerRef.current = window.setTimeout(() => {
+        setFooterClickCount(0);
+      }, 2000);
+      return newCount;
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (footerClickTimerRef.current) {
+        window.clearTimeout(footerClickTimerRef.current);
+      }
+    };
+  }, []);
+
   const navUserName = getNavUserName(oaUser);
 
   // --------------------------------------------------------------------------
@@ -706,7 +735,12 @@ const App: React.FC = () => {
       )}
 
       {/* 底部页脚 */}
-      <Footer healthy={healthy} />
+      {!adminView && <Footer healthy={healthy} onFooterClick={handleFooterClick} />}
+
+      {/* 管理员统计看板 */}
+      {adminView && (
+        <AdminDashboard />
+      )}
     </div>
   );
 };

@@ -6,6 +6,8 @@ from pymongo import MongoClient
 from app.audit_service import AuditService
 from app.auth_service import AuthService
 from app.core.config import settings
+from uuid import uuid4
+from datetime import datetime, timezone, timedelta
 
 
 router = APIRouter()
@@ -278,3 +280,43 @@ async def get_audit_report_pdf(
         media_type="application/pdf",
         filename=filename,
     )
+
+
+# ============================================================================
+# Admin endpoints
+# ============================================================================
+
+
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AdminLoginResponse(BaseModel):
+    ok: bool
+    token: str | None = None
+
+
+@router.post("/admin/login", response_model=AdminLoginResponse)
+async def admin_login(payload: AdminLoginRequest):
+    """管理员登录接口。凭证硬编码在配置中 (ADMIN_USERNAME / ADMIN_PASSWORD)。"""
+    if payload.username != settings.ADMIN_USERNAME or payload.password != settings.ADMIN_PASSWORD:
+        return AdminLoginResponse(ok=False, token=None)
+
+    service = get_auth_service()
+    session_id = service._create_admin_session()
+    return AdminLoginResponse(ok=True, token=session_id)
+
+
+def get_admin_user(request: Request) -> dict:
+    """Require a valid admin session token from X-Session-Token header."""
+    token = request.headers.get("X-Session-Token")
+    service = get_auth_service()
+    return service.require_admin(token)
+
+
+@router.get("/admin/stats")
+async def get_admin_stats(request: Request, admin_user: dict = Depends(get_admin_user)):
+    """获取使用统计数据（仅管理员可访问）。"""
+    service = get_audit_service()
+    return service.get_usage_stats()

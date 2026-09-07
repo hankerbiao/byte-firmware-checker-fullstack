@@ -369,3 +369,70 @@ export async function downloadAuditReportPdf(auditId: string): Promise<Blob> {
   }
   return response.blob();
 }
+
+export interface AdminLoginPayload {
+  username: string;
+  password: string;
+}
+
+export interface AdminLoginResponse {
+  ok: boolean;
+  token?: string | null;
+}
+
+export async function adminLogin(params: AdminLoginPayload): Promise<AdminLoginResponse> {
+  const response = await fetch(`${API_BASE_URL}/admin/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!response.ok) {
+    throw new Error('Admin login failed');
+  }
+  return response.json();
+}
+
+export interface FirmwareTypeDistribution {
+  [key: string]: number;
+}
+
+export interface CategoryDistributionItem {
+  category: string;
+  count: number;
+}
+
+export interface DailyTrendItem {
+  date: string;
+  total: number;
+  passed: number;
+  failed: number;
+}
+
+export interface AdminStatsResponse {
+  totalAudits: number;
+  completedAudits: number;
+  failedAudits: number;
+  analyzingAudits: number;
+  passRate: number;
+  firmwareTypeDistribution: FirmwareTypeDistribution;
+  dailyTrend: DailyTrendItem[];
+  categoryDistribution: CategoryDistributionItem[];
+  uniqueUsers: number;
+  updatedAt: string;
+}
+
+export async function getAdminStats(): Promise<AdminStatsResponse> {
+  const response = await fetch(`${API_BASE_URL}/admin/stats`, {
+    headers: withAuthHeaders(),
+  });
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('UNAUTHORIZED');
+    }
+    if (response.status === 403) {
+      throw new Error('FORBIDDEN');
+    }
+    throw new Error('Failed to fetch admin stats');
+  }
+  return response.json();
+}
