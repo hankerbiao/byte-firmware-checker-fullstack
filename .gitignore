@@ -12,6 +12,9 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+__pycache__/
+*.py[cod]
 openapi.json
 
 # Editor directories and files

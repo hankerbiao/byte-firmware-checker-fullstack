@@ -16,6 +16,13 @@ import uuid
 from PyPDF2 import PdfReader
 import pdfplumber
 from pymongo import MongoClient
+
+try:
+    from app.core.config import settings
+except ModuleNotFoundError:
+    # The file is also invoked directly by AuditService as a subprocess.
+    from core.config import settings
+
 MONGO_AVAILABLE = True
 
 
@@ -156,8 +163,8 @@ def init_mongo():
         return
     if MONGO_CLIENT is not None:
         return
-    MONGO_CLIENT = MongoClient("mongodb://10.17.154.252:27018")
-    MONGO_DB = MONGO_CLIENT["firmware_audit"]
+    MONGO_CLIENT = MongoClient(settings.MONGO_URI, **settings.mongo_client_kwargs())
+    MONGO_DB = MONGO_CLIENT[settings.MONGO_DB_NAME]
 
 
 initialize_globals()
@@ -786,7 +793,8 @@ def search_md5_in_pdf_with_pypdf2(pdf_path, target_str):
         # 4. 文本清洗（去空白、统一小写，避免格式干扰匹配）
         clean_pdf_text = pdf_text.lower().replace(" ", "").replace("\n", "").replace("\t", "")
         clean_target = target_str.lower().replace(" ", "").replace("\n", "").replace("\t", "")
-        
+        print(clean_pdf_text,"--------",clean_target)
+
         if clean_target in clean_pdf_text:
             return True
         return False

@@ -1,20 +1,19 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 前端源码运行
 
-# Run and deploy your AI Studio app
+```bash
+corepack enable
+pnpm install --frozen-lockfile
+pnpm dev --host 127.0.0.1 --port 3000
+```
 
-This contains everything you need to run your app locally.
+前端默认请求 `http://127.0.0.1:8000/api/v1`。后端位于其他地址时，在启动前设置：
 
-View your app in AI Studio: https://ai.studio/apps/drive/1P8kAwA6Sc7dRVKBobTggqvzRrMkypIRo
+```bash
+VITE_API_BASE_URL=http://backend.example.internal:8000/api/v1 pnpm dev
+```
 
-## Run Locally
+构建静态资源：
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+pnpm build
+```

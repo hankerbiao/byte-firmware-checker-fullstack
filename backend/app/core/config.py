@@ -4,13 +4,35 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+DEFAULT_MONGO_URI = (
+    "mongodb://10.17.159.232:27017,10.17.159.228:27017,"
+    "10.17.158.254:27017/?authSource=admin"
+)
+
 
 class Settings(BaseModel):
     APP_NAME: str = "Firmware Check Service"
     VERSION: str = "0.1.0"
 
-    MONGO_URI: str = os.getenv("MONGO_URI", "mongodb://10.17.154.252:27018")
-    MONGO_DB_NAME: str = os.getenv("MONGO_DB_NAME", "firmware_audit")
+    MONGO_URI: str = os.getenv("MONGO_URI", DEFAULT_MONGO_URI)
+    MONGO_DB_NAME: str = "byte-firmware-checker"
+    MONGO_USERNAME: str | None = os.getenv("MONGO_USERNAME", "byte-firmware-checker") or None
+    MONGO_PASSWORD: str | None = os.getenv("MONGO_PASSWORD") or None
+    MONGO_AUTH_SOURCE: str | None = os.getenv("MONGO_AUTH_SOURCE", "admin") or None
+
+    def mongo_client_kwargs(self) -> dict[str, str]:
+        """Return optional authentication arguments for :class:`MongoClient`."""
+        if self.MONGO_USERNAME and not self.MONGO_PASSWORD:
+            raise RuntimeError("MONGO_PASSWORD must be set before connecting to MongoDB.")
+
+        kwargs: dict[str, str] = {}
+        if self.MONGO_USERNAME:
+            kwargs["username"] = self.MONGO_USERNAME
+        if self.MONGO_PASSWORD:
+            kwargs["password"] = self.MONGO_PASSWORD
+        if self.MONGO_AUTH_SOURCE:
+            kwargs["authSource"] = self.MONGO_AUTH_SOURCE
+        return kwargs
 
     FWAUDIT_SCRIPT_TIMEOUT: int = int(os.getenv("FWAUDIT_SCRIPT_TIMEOUT", "3600"))
     FWAUDIT_SCRIPT_PATH: str = os.getenv(

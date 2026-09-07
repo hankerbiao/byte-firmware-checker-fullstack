@@ -98,25 +98,6 @@ make test-cov     # Run tests with coverage
 make lint         # Lint code
 make format       # Format code
 make clean        # Clean cache files
-make docker-build # Build Docker image
-make docker-run   # Run with Docker Compose
-make docker-dev   # Run dev environment
-```
-
-### Docker
-
-```bash
-# Production (with PostgreSQL)
-cd backend
-docker-compose up -d
-
-# Development (with hot reload)
-cd backend
-docker-compose -f docker-compose.dev.yml up
-
-# Build image
-cd backend
-docker build -t firmware-audit .
 ```
 
 ## Testing
@@ -243,8 +224,6 @@ frontend/src/
 - `backend/requirements.txt` - Python dependencies
 - `backend/pytest.ini` - Test configuration
 - `backend/Makefile` - Common tasks
-- `backend/docker-compose.yml` - Production Docker setup
-- `backend/docker-compose.dev.yml` - Development Docker setup
 - `backend/PROJECT_SUMMARY.md` - Detailed architecture documentation
 
 ### Backend Core
@@ -313,7 +292,7 @@ make format # Fix code style
 
 2. **Database:**
    - SQLite used by default for development
-   - PostgreSQL for production (via Docker)
+   - MongoDB configured through environment variables
 
 3. **Authentication:**
    - JWT-based authentication
@@ -323,10 +302,6 @@ make format # Fix code style
    - Uses pytest with async support
    - In-memory SQLite for tests
    - HTTPX test client
-
-5. **Docker:**
-   - Development: Hot reload enabled
-   - Production: Optimized build with Gunicorn
 
 ## Architecture Decisions
 

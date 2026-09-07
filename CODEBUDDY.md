@@ -6,17 +6,15 @@ This file provides guidance to CodeBuddy Code when working with code in this rep
 
 This is a **智能固件合规审计系统** (Intelligent Firmware Compliance Audit System) — a platform for automated compliance checking of BMC/BIOS firmware packages. Users upload firmware `.zip` files, the system runs a compliance check script against them, and displays a structured compliance report.
 
-**Stack:** Python 3.13 + FastAPI + MongoDB 7 (backend) | React 19 + TypeScript + Vite 6 (frontend) | Docker Compose (deployment)
+**Stack:** Python 3.12+ + FastAPI + MongoDB (backend) | React 19 + TypeScript + Vite 6 (frontend)
 
 ## Project Structure
 
 ```
 /
-├── docker-compose.yml       # 3 services: mongodb, backend, frontend
 ├── backend/                 # Python FastAPI backend (PyMongo, synchronous)
 │   ├── requirements.txt     # pip deps (fastapi, uvicorn, pydantic, reportlab)
 │   ├── pyproject.toml       # uv deps (pymongo, reportlab, pdfplumber, pypdf2)
-│   ├── Dockerfile           # python:3.12-slim
 │   └── app/
 │       ├── main.py          # FastAPI app factory + /api/v1/health
 │       ├── endpoints.py     # ALL HTTP endpoints in one file (see below)
@@ -28,7 +26,6 @@ This is a **智能固件合规审计系统** (Intelligent Firmware Compliance Au
 │       └── models/checks.py # Pydantic models: CheckItem, CheckReport, FirmwareInfo
 └── frontend/                # React + TypeScript + Vite
     ├── package.json         # pnpm
-    ├── Dockerfile           # node:20-alpine
     ├── vite.config.ts       # port 3000, host 0.0.0.0
     └── src/
         ├── App.tsx          # Phase-based state machine: upload → analyzing → report
@@ -145,19 +142,6 @@ pnpm run preview
 
 **Note:** Frontend dev requires `GEMINI_API_KEY` in `frontend/.env.local` (for the Gemini AI Studio deployment script). The app itself does not use Gemini — the key is only needed if deploying to Google AI Studio.
 
-### Docker Compose (full stack)
-
-```bash
-# Start all services
-docker compose up -d --build
-
-# Stop
-docker compose down
-
-# View logs
-docker compose logs -f
-```
-
 ## MongoDB Collections
 
 | Collection | Purpose | Key Fields |
@@ -176,8 +160,8 @@ docker compose logs -f
 
 ## Important Notes
 
-- **MongoDB connection**: Default `MONGO_URI` is `mongodb://10.17.154.252:27018` (overridden via env in `docker-compose.yml` to `mongodb://mongodb:27017`).
+- **MongoDB connection**: Configure `MONGO_URI`, `MONGO_DB_NAME`, `MONGO_USERNAME`, `MONGO_PASSWORD`, and `MONGO_AUTH_SOURCE` in `backend/.env` before launching the backend.
 - **Check script**: The file `CheckFWFile_v1.3.1.py` is both imported as a module AND run as a subprocess. It uses a `log_assert()` function to write directly to MongoDB from within the subprocess.
-- **Frontend API URL**: In dev mode, the client points to `http://127.0.0.1:8000/api/v1`; in production (Docker), it uses relative path `/api/v1` served through the same host.
+- **Frontend API URL**: Development uses `http://127.0.0.1:8000/api/v1`; set `VITE_API_BASE_URL` when the backend runs on another host.
 - **No frontend tests**: The frontend has no test runner configured.
 - **No backend tests**: The backend has no test infrastructure (no pytest config, no test directory).
