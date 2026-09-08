@@ -645,7 +645,7 @@ class AuditService:
                     "_id": {
                         "$dateToString": {
                             "format": "%Y-%m-%d",
-                            "date": {"$dateFromString": {"dateFormat": "%Y-%m-%dT%H:%M:%S.%f%z", "dateString": "$createdAt"}},
+                            "dateString": "$createdAt",
                         }
                     },
                     "count": {"$sum": 1},

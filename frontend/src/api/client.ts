@@ -1,11 +1,11 @@
 const DEV_API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
-const PROD_API_BASE_URL = '/api/v1';
-
-export const API_BASE_URL =
-  (import.meta as any).env?.VITE_API_BASE_URL ??
-  (((import.meta as any).env?.MODE ?? import.meta.env.MODE) === 'development'
+const _mode = (import.meta as any).env?.MODE ?? import.meta.env.MODE;
+const PROD_API_BASE_URL =
+  _mode === 'development'
     ? DEV_API_BASE_URL
-    : PROD_API_BASE_URL);
+    : (import.meta as any).env?.VITE_API_BASE_PATH
+      ? `${(import.meta as any).env?.VITE_API_BASE_PATH}/api/v1`
+      : '/package_check/api/v1';
 
 export type ApiFirmwareType = 'BMC' | 'BIOS' | 'UNKNOWN';
 export type BmcType = 'AMI' | 'OpenBMC' | 'Self';
@@ -213,7 +213,7 @@ export async function createAuditChunked(
   params: CreateAuditParams,
   options: ChunkUploadOptions = {},
 ): Promise<AuditTask> {
-  const chunkSize = options.chunkSize ?? 1024 * 1024;
+  const chunkSize = options.chunkSize ?? 8 * 1024 * 1024;
   const totalSize = params.file.size;
   const totalChunks = Math.ceil(totalSize / chunkSize);
   const totalSteps = totalChunks + 1;
