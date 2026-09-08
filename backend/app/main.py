@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+from starlette.formparsers import MultiPartParser
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -29,6 +30,9 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+MultiPartParser.max_part_size = 16 * 1024 * 1024  # 16MB to support 8MB chunk uploads
+app.max_form_body_size = 16 * 1024 * 1024
 
 
 @app.get("/api/v1/health")
