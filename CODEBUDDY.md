@@ -26,10 +26,10 @@ This is a **智能固件合规审计系统** (Intelligent Firmware Compliance Au
 │       └── models/checks.py # Pydantic models: CheckItem, CheckReport, FirmwareInfo
 └── frontend/                # React + TypeScript + Vite
     ├── package.json         # pnpm
-    ├── vite.config.ts       # port 3000, host 0.0.0.0
+    ├── vite.config.ts       # port 9000, host 0.0.0.0
     └── src/
         ├── App.tsx          # Phase-based state machine: upload → analyzing → report
-        ├── api/client.ts    # Axios-like API client (dev: 127.0.0.1:8000, prod: relative)
+        ├── api/client.ts    # Axios-like API client (dev: 127.0.0.1:9001, prod: relative)
         ├── components/
         │   ├── UploadZone.tsx       # Drag-and-drop file upload with chunking
         │   ├── AnalyzingPhase.tsx   # Live console log streaming (polls every 1s)
@@ -116,10 +116,10 @@ pip install -r backend/requirements.txt
 cd backend && uv sync
 
 # Run dev server
-uvicorn backend.app.main:app --reload --port 8000
+uvicorn backend.app.main:app --reload --port 9001
 
 # Or from backend/ dir
-cd backend && python -m uvicorn app.main:app --reload --port 8000
+cd backend && python -m uvicorn app.main:app --reload --port 9001
 ```
 
 ### Frontend
@@ -130,7 +130,7 @@ cd frontend
 # Install
 pnpm install
 
-# Dev server (port 3000)
+# Dev server (port 9000)
 pnpm run dev
 
 # Build for production
@@ -162,6 +162,6 @@ pnpm run preview
 
 - **MongoDB connection**: Configure `MONGO_URI`, `MONGO_DB_NAME`, `MONGO_USERNAME`, `MONGO_PASSWORD`, and `MONGO_AUTH_SOURCE` in `backend/.env` before launching the backend.
 - **Check script**: The file `CheckFWFile_v1.3.1.py` is both imported as a module AND run as a subprocess. It uses a `log_assert()` function to write directly to MongoDB from within the subprocess.
-- **Frontend API URL**: Development uses `http://127.0.0.1:8000/api/v1`; set `VITE_API_BASE_URL` when the backend runs on another host.
+- **Frontend API URL**: Development uses `http://127.0.0.1:9001/api/v1`; set `VITE_API_BASE_URL` when the backend runs on another host.
 - **No frontend tests**: The frontend has no test runner configured.
 - **No backend tests**: The backend has no test infrastructure (no pytest config, no test directory).

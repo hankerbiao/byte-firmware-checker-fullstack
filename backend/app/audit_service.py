@@ -43,6 +43,30 @@ class AuditService:
         return datetime.now(timezone.utc).isoformat()
 
     @staticmethod
+    def _parse_created_at(value: Any) -> datetime | None:
+        """
+        将 MongoDB 中 createdAt 字段解析为带时区的 datetime。
+
+        历史数据格式不统一：可能是 BSON Date、ISO8601 字符串（含 Z / +00:00），
+        也可能是固件检查脚本写入的 "YYYY-MM-DD_HH:MM:SS"（下划线分隔、无时区）。
+        无法解析时返回 None。
+        """
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        if not isinstance(value, str) or not value:
+            return None
+        raw = value.strip()
+        if "_" in raw:
+            raw = raw.replace("_", "T", 1)
+        try:
+            dt = datetime.fromisoformat(raw)
+        except ValueError:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+
+    @staticmethod
     def _format_timestamp_local(value: str | None) -> str | None:
         if not value:
             return None
@@ -637,38 +661,23 @@ class AuditService:
             type_dist[key] = doc["count"]
 
         # --- last 7 days trend ---
-        seven_days_ago = (now - timedelta(days=7)).isoformat()
-        daily_pipeline = [
-            {"$match": {"createdAt": {"$gte": seven_days_ago}}},
-            {
-                "$group": {
-                    "_id": {
-                        "$dateToString": {
-                            "format": "%Y-%m-%d",
-                            "dateString": "$createdAt",
-                        }
-                    },
-                    "count": {"$sum": 1},
-                    "passed": {
-                        "$sum": {"$cond": [{"$eq": ["$status", "COMPLETED"]}, 1, 0]}
-                    },
-                    "failed": {
-                        "$sum": {
-                            "$cond": [{"$eq": ["$status", "FAILED"]}, 1, 0]
-                        }
-                    },
-                }
-            },
-            {"$sort": {"_id": 1}},
+        seven_days_ago = now - timedelta(days=7)
+        daily_counter: dict[str, dict[str, int]] = {}
+        for doc in self.db["audits"].find({}, {"createdAt": 1, "status": 1}):
+            ts = self._parse_created_at(doc.get("createdAt"))
+            if ts is None or ts < seven_days_ago:
+                continue
+            day = ts.date().isoformat()
+            entry = daily_counter.setdefault(day, {"total": 0, "passed": 0, "failed": 0})
+            entry["total"] += 1
+            if doc.get("status") == "COMPLETED":
+                entry["passed"] += 1
+            elif doc.get("status") == "FAILED":
+                entry["failed"] += 1
+        daily_rows: list[dict] = [
+            {"date": day, **counts}
+            for day, counts in sorted(daily_counter.items())
         ]
-        daily_rows: list[dict] = []
-        for doc in self.db["audits"].aggregate(daily_pipeline):
-            daily_rows.append({
-                "date": doc["_id"],
-                "total": doc["count"],
-                "passed": doc["passed"],
-                "failed": doc["failed"],
-            })
 
         # --- check category distribution ---
         category_pipeline = [

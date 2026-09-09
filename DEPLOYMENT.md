@@ -7,8 +7,8 @@
 - pnpm 10
 - 可访问的 MongoDB 实例
 
-前端默认运行在 `http://127.0.0.1:3000`，后端默认运行在
-`http://127.0.0.1:8000`，API 基地址为 `http://127.0.0.1:8000/api/v1`。
+前端默认运行在 `http://127.0.0.1:9000`，后端默认运行在
+`http://127.0.0.1:9001`，API 基地址为 `http://127.0.0.1:9001/api/v1`。
 
 ## 配置 MongoDB
 
@@ -33,7 +33,7 @@ set -a
 source .env
 set +a
 uv sync
-uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+uv run uvicorn app.main:app --host 127.0.0.1 --port 9001 --reload
 ```
 
 不用 uv 时，创建虚拟环境后执行：
@@ -46,16 +46,16 @@ pip install -r requirements.txt
 set -a
 source .env
 set +a
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn app.main:app --host 127.0.0.1 --port 9001 --reload
 ```
 
 健康检查：
 
 ```bash
-curl http://127.0.0.1:8000/api/v1/health
+curl http://127.0.0.1:9001/api/v1/health
 ```
 
-接口文档：`http://127.0.0.1:8000/docs`。
+接口文档：`http://127.0.0.1:9001/docs`。
 
 ## 启动前端
 
@@ -65,15 +65,15 @@ curl http://127.0.0.1:8000/api/v1/health
 cd frontend
 corepack enable
 pnpm install --frozen-lockfile
-pnpm dev --host 127.0.0.1 --port 3000
+pnpm dev --host 127.0.0.1 --port 9000
 ```
 
-浏览器访问 `http://127.0.0.1:3000`。开发环境的前端 API 地址已指向本地后端。
+浏览器访问 `http://127.0.0.1:9000`。开发环境的前端 API 地址已指向本地后端。
 
 若前端与后端不在同一主机运行，设置 `VITE_API_BASE_URL` 后重新启动前端，例如：
 
 ```bash
-VITE_API_BASE_URL=http://backend.example.internal:8000/api/v1 pnpm dev --host 0.0.0.0
+VITE_API_BASE_URL=http://backend.example.internal:9001/api/v1 pnpm dev --host 0.0.0.0
 ```
 
 ## 更新与运维

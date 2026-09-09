@@ -10,7 +10,7 @@ This is a **智能固件合规审计系统** (Intelligent Firmware Compliance Au
 
 The system has three main components:
 
-1. **Frontend** (`frontend/`): React + TypeScript + Vite application (port 3000)
+1. **Frontend** (`frontend/`): React + TypeScript + Vite application (port 9000)
 2. **Main Backend** (`app/`): Python FastAPI application implementing clean architecture
 3. **Template Backend** (`backend/`): Additional FastAPI service with comprehensive tests
 
@@ -51,7 +51,7 @@ app/
 cd frontend
 pnpm install
 
-# Start development server (port 3000)
+# Start development server (port 9000)
 pnpm run dev
 
 # Build for production
@@ -136,7 +136,7 @@ pytest -m integration
 
 ### Main Application (app/api/v1/)
 
-**Base URL:** `http://localhost:8000/api/v1`
+**Base URL:** `http://localhost:9001/api/v1`
 
 **Authentication:**
 - `POST /api/v1/auth/register` - Register new user
@@ -159,9 +159,9 @@ pytest -m integration
 - `DELETE /api/v1/items/{item_id}` - Delete item
 
 **Documentation:**
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
-- Health check: `http://localhost:8000/health`
+- Swagger UI: `http://localhost:9001/docs`
+- ReDoc: `http://localhost:9001/redoc`
+- Health check: `http://localhost:9001/health`
 
 ## Database Configuration
 
