@@ -1,4 +1,5 @@
-FROM python:3.12-slim-bookworm
+# The deployment host already ships this Python 3.12 base image locally.
+FROM unidata:local
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
