@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 SERVER_HOST="10.17.158.114"
-SERVER_USER="admin"
+SERVER_USER="root"
 REMOTE_DIR="/root/firmware-checker"
 LOCAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
