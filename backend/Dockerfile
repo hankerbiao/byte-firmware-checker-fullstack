@@ -3,15 +3,13 @@ FROM quality-monitoring-backend:local
 USER root
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
 
 WORKDIR /app
 
 COPY requirements.txt ./
-RUN pip install --no-cache-dir \
-    "pdfplumber>=0.11.9,<1.0.0" \
-    "pypdf2>=3.0.1,<4.0.0" \
-    "reportlab>=4.0.0,<5.0.0"
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
