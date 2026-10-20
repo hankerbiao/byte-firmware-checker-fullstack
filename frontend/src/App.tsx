@@ -20,7 +20,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ShieldCheck, History, Loader2, Zap } from 'lucide-react';
 
 import { NavBar, Footer, UploadPhase, AnalyzingPhase, ReportPhase } from './AppLayoutParts';
-import AdminDashboard from './components/AdminDashboard';
+import OperationsDashboard from './components/OperationsDashboard';
 
 // 导入类型定义和常量
 import { InspectionReport, FirmwareType, CheckStatus, CheckItem, ConsoleLog } from './types';
@@ -43,8 +43,9 @@ const THEME_CONFIG = {
   storageKey: 'core-audit-theme',  // localStorage 中的键名
 };
 
-const OA_APP_NAME = 'bytespkgcheck';
-const OA_LOGIN_BASE_URL = 'http://tl.cooacloud.com/springboard_v3/login_proxy';
+const OA_LOGIN_BROKER_URL =
+  (import.meta as any).env?.VITE_OA_LOGIN_BROKER_URL ??
+  'https://one.1oa.com.cn/springboard/api/v1/broker/apps/bytespkgcheck/login?environment=formal';
 
 const mapApiLogs = (logs: ApiConsoleLog[]): ConsoleLog[] => {
   return logs.map(log => ({
@@ -192,9 +193,7 @@ const App: React.FC = () => {
   const [healthy, setHealthy] = useState<boolean | null>(null);
   const [oaUser, setOaUser] = useState<unknown | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [adminView, setAdminView] = useState(false);
-  const [footerClickCount, setFooterClickCount] = useState(0);
-  const footerClickTimerRef = useRef<number | null>(null);
+  const [operationsDashboardOpen, setOperationsDashboardOpen] = useState(false);
 
   const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type });
@@ -333,9 +332,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleOALogin = useCallback(() => {
-    const next = window.location.origin;
-    const target = `${OA_LOGIN_BASE_URL}/${encodeURIComponent(OA_APP_NAME)}?next=${encodeURIComponent(next)}`;
-    window.location.href = target;
+    window.location.href = OA_LOGIN_BROKER_URL;
   }, []);
 
   useEffect(() => {
@@ -534,32 +531,8 @@ const App: React.FC = () => {
     setDarkMode(prev => !prev);
   }, []);
 
-  const handleFooterClick = useCallback(() => {
-    setFooterClickCount(prev => {
-      const newCount = prev + 1;
-      if (footerClickTimerRef.current) {
-        window.clearTimeout(footerClickTimerRef.current);
-      }
-      if (newCount >= 3) {
-        setAdminView(true);
-        return 0;
-      }
-      footerClickTimerRef.current = window.setTimeout(() => {
-        setFooterClickCount(0);
-      }, 2000);
-      return newCount;
-    });
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (footerClickTimerRef.current) {
-        window.clearTimeout(footerClickTimerRef.current);
-      }
-    };
-  }, []);
-
   const navUserName = getNavUserName(oaUser);
+  const canViewOperationsDashboard = (oaUser as any)?.itcode === 'libiao1';
 
   // --------------------------------------------------------------------------
   // 渲染逻辑
@@ -578,11 +551,15 @@ const App: React.FC = () => {
         onLogout={() => {
           setSessionToken(null);
           setOaUser(null);
+          setOperationsDashboardOpen(false);
           resetApp();
           showNotification('已退出登录');
         }}
         loggedIn={oaUser != null}
         userName={navUserName}
+        canViewOperationsDashboard={canViewOperationsDashboard}
+        operationsDashboardOpen={operationsDashboardOpen}
+        onToggleOperationsDashboard={() => setOperationsDashboardOpen(prev => !prev)}
       />
 
       {/* 全局通知 */}
@@ -603,8 +580,15 @@ const App: React.FC = () => {
 
       {/* 主内容区域 */}
       <main className="w-full max-w-7xl px-8 py-10 flex-1 flex flex-col relative z-20">
+        {operationsDashboardOpen && canViewOperationsDashboard && (
+          <OperationsDashboard
+            user={(oaUser || {}) as Record<string, unknown>}
+            onBack={() => setOperationsDashboardOpen(false)}
+          />
+        )}
+
         {/* 上传阶段 */}
-        {phase === 'upload' && (
+        {!operationsDashboardOpen && phase === 'upload' && (
           <UploadPhase
             onFilesAccepted={handleStartAnalysis}
             isProcessing={isProcessing || healthy === false}
@@ -613,7 +597,7 @@ const App: React.FC = () => {
         )}
 
         {/* 分析阶段 */}
-        {phase === 'analyzing' && (
+        {!operationsDashboardOpen && phase === 'analyzing' && (
           <AnalyzingPhase
             logs={analysisLogs}
             logEndRef={logEndRef}
@@ -622,7 +606,7 @@ const App: React.FC = () => {
         )}
 
         {/* 报告阶段 */}
-        {phase === 'report' && currentReport && (
+        {!operationsDashboardOpen && phase === 'report' && currentReport && (
           <ReportPhase
             report={currentReport}
             onReset={resetApp}
@@ -735,12 +719,7 @@ const App: React.FC = () => {
       )}
 
       {/* 底部页脚 */}
-      {!adminView && <Footer healthy={healthy} onFooterClick={handleFooterClick} />}
-
-      {/* 管理员统计看板 */}
-      {adminView && (
-        <AdminDashboard />
-      )}
+      <Footer healthy={healthy} />
     </div>
   );
 };

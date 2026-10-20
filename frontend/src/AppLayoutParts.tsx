@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
     ShieldCheck,
     History,
+    BarChart3,
     Moon,
     Sun,
     LogIn,
@@ -11,6 +12,10 @@ import {
     Bot,
     Loader2,
     ChevronLeft,
+    CheckCircle2,
+    Sparkles,
+    Heart,
+    FileSearch,
 } from 'lucide-react';
 
 import UploadZone from './components/UploadZone';
@@ -27,8 +32,11 @@ export const NavBar: React.FC<{
     onLogout: () => void;
     loggedIn: boolean;
     userName?: string | null;
+    canViewOperationsDashboard?: boolean;
+    operationsDashboardOpen?: boolean;
+    onToggleOperationsDashboard?: () => void;
 }> = React.memo(
-    ({darkMode, toggleTheme, onReset, onToggleHistory, healthy, onLogin, onLogout, loggedIn, userName}) => {
+    ({darkMode, toggleTheme, onReset, onToggleHistory, healthy, onLogin, onLogout, loggedIn, userName, canViewOperationsDashboard, operationsDashboardOpen, onToggleOperationsDashboard}) => {
         const [userMenuOpen, setUserMenuOpen] = useState(false);
         const userMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -102,6 +110,19 @@ export const NavBar: React.FC<{
                     >
                         <History size={18}/> 审计历史
                     </button>
+
+                    {canViewOperationsDashboard && (
+                        <button
+                            className={`hidden md:flex items-center gap-2 px-4 py-2 text-sm font-bold transition-all ${
+                                operationsDashboardOpen
+                                    ? 'text-cyan-600 dark:text-cyan-300'
+                                    : 'text-slate-600 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-300'
+                            }`}
+                            onClick={onToggleOperationsDashboard}
+                        >
+                            <BarChart3 size={18}/> 运行看板
+                        </button>
+                    )}
 
                     {!loggedIn && (
                         <div className="relative">
@@ -257,6 +278,20 @@ export const AnalyzingPhase: React.FC<{
     logEndRef: React.RefObject<HTMLDivElement>;
     getLogClassName: (log: ConsoleLog) => string;
 }> = ({logs, logEndRef, getLogClassName}) => {
+    const [moodIndex, setMoodIndex] = useState(0);
+    const analysisMoods = [
+        '正在给每一条规则找到位置',
+        '细节核对中，马上就有结果',
+        '审计引擎正在认真检查',
+    ];
+
+    useEffect(() => {
+        const moodTimer = window.setInterval(() => {
+            setMoodIndex(index => (index + 1) % analysisMoods.length);
+        }, 2600);
+        return () => window.clearInterval(moodTimer);
+    }, []);
+
     return (
         <div
             className="flex flex-col items-center justify-center flex-1 py-12 animate-in fade-in scale-95 duration-1000">
@@ -269,8 +304,14 @@ export const AnalyzingPhase: React.FC<{
                                 className="absolute inset-0 border-8 border-slate-100 dark:border-white/5 rounded-full"/>
                             <div
                                 className="absolute inset-0 border-t-8 border-blue-600 dark:border-blue-400 rounded-full animate-spin-slow"/>
+                            <div className="audit-orbit audit-orbit-one" aria-hidden="true">
+                                <span><FileSearch size={14} /></span>
+                            </div>
+                            <div className="audit-orbit audit-orbit-two" aria-hidden="true">
+                                <span><Sparkles size={13} /></span>
+                            </div>
                             <div
-                                className="relative z-10 p-8 bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl border border-slate-200 dark:border-white/10">
+                                className="relative z-10 p-8 bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl border border-slate-200 dark:border-white/10 audit-core-pulse">
                                 <Bot size={80} className="text-blue-600 dark:text-blue-400"/>
                             </div>
                         </div>
@@ -281,8 +322,18 @@ export const AnalyzingPhase: React.FC<{
                             审计引擎深度分析中
                         </h2>
                         <p className="text-slate-500 dark:text-slate-400 text-lg font-medium">
-                            正在执行固件合规检查...
+                            <span key={moodIndex} className="inline-block animate-in fade-in slide-in-from-bottom-1 duration-500">
+                                {analysisMoods[moodIndex]}
+                            </span>
                         </p>
+                        <div className="flex items-center justify-center gap-2" aria-label="审计进行中">
+                            {[0, 1, 2].map(index => (
+                                <span
+                                    key={index}
+                                    className={`analysis-beat-dot analysis-beat-dot-${index + 1}`}
+                                />
+                            ))}
+                        </div>
                     </div>
                 </div>
 
@@ -334,8 +385,37 @@ export const ReportPhase: React.FC<{
     report: InspectionReport;
     onReset: () => void;
 }> = ({report, onReset}) => {
+    const [showCelebration, setShowCelebration] = useState(true);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => setShowCelebration(false), 4200);
+        return () => window.clearTimeout(timer);
+    }, [report.id]);
+
+    const celebrationCopy =
+        report.overallScore >= 90
+            ? '这次审计完成得很漂亮'
+            : report.overallScore >= 70
+                ? '结果已整理好，辛苦你了'
+                : '问题已经标记清楚，下一步会更顺';
+
     return (
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000">
+            {showCelebration && (
+                <div className="audit-complete-spotlight" role="status" aria-live="polite">
+                    <div className="audit-complete-confetti" aria-hidden="true">
+                        {Array.from({length: 12}, (_, index) => <span key={index} />)}
+                    </div>
+                    <div className="audit-complete-icon">
+                        {report.overallScore >= 90 ? <Heart size={22} /> : <CheckCircle2 size={22} />}
+                    </div>
+                    <div>
+                        <p className="audit-complete-kicker">审计完成</p>
+                        <p className="audit-complete-copy">{celebrationCopy}</p>
+                    </div>
+                    <div className="audit-complete-score">{report.overallScore}<span>分</span></div>
+                </div>
+            )}
             <div className="flex flex-col md:flex-row items-center justify-between mb-12 gap-6">
                 <button
                     onClick={onReset}

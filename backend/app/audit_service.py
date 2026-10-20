@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 import subprocess
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -136,7 +137,16 @@ class AuditService:
         ]
 
         try:
-            subprocess.run(cmd, check=True, timeout=settings.FWAUDIT_SCRIPT_TIMEOUT)
+            # The checker already writes structured progress/results to MongoDB.
+            # Discarding its very chatty console output avoids a large json-file
+            # Docker log write for every PDF and ZIP entry it inspects.
+            subprocess.run(
+                cmd,
+                check=True,
+                timeout=settings.FWAUDIT_SCRIPT_TIMEOUT,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            )
         except subprocess.TimeoutExpired:
             reason = f"检查脚本在 {settings.FWAUDIT_SCRIPT_TIMEOUT} 秒后超时"
             logger.error("[audit %s] %s", audit_id, reason)
@@ -352,6 +362,17 @@ class AuditService:
                 detail="Failed to initialize upload directory",
             )
 
+        payload_path = chunk_dir / "payload.bin"
+        try:
+            with payload_path.open("wb") as payload:
+                payload.truncate(int(total_size))
+        except Exception as exc:  # noqa: BLE001
+            shutil.rmtree(chunk_dir, ignore_errors=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to initialize upload file",
+            ) from exc
+
         effective_script_name = script_name or Path(settings.FWAUDIT_SCRIPT_PATH).name
         doc = {
             "uploadId": upload_id,
@@ -402,6 +423,16 @@ class AuditService:
                 detail="Invalid chunk index",
             )
 
+        expected_size = min(
+            int(meta.get("chunkSize", 0)),
+            int(meta.get("totalSize", 0)) - chunk_index * int(meta.get("chunkSize", 0)),
+        )
+        if expected_size <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid chunk size",
+            )
+
         base_dir = Path(settings.FWAUDIT_UPLOAD_DIR)
         chunk_root = base_dir / "chunk_uploads"
         chunk_dir = chunk_root / upload_id
@@ -411,22 +442,42 @@ class AuditService:
                 detail="Upload directory not found",
             )
 
-        part_path = chunk_dir / f"{chunk_index:06d}.part"
+        payload_path = chunk_dir / "payload.bin"
+        marker_path = chunk_dir / f"{chunk_index:06d}.done"
 
         try:
-            with part_path.open("wb") as f:
+            if not payload_path.is_file():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Upload file not found",
+                )
+
+            offset = chunk_index * int(meta.get("chunkSize", 0))
+            received_size = 0
+            with payload_path.open("r+b", buffering=0) as payload:
                 while True:
-                    data = await chunk_file.read(1024 * 1024)
+                    data = await chunk_file.read(4 * 1024 * 1024)
                     if not data:
                         break
-                    f.write(data)
+                    if received_size + len(data) > expected_size:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Chunk is larger than expected",
+                        )
+                    os.pwrite(payload.fileno(), data, offset + received_size)
+                    received_size += len(data)
+
+            if received_size != expected_size:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Chunk size mismatch",
+                )
+
+            marker_path.touch()
+        except HTTPException:
+            raise
         except Exception as exc:  # noqa: BLE001
             logger.error("[upload %s] 写入分片失败(%s): %s", upload_id, chunk_index, exc)
-            if part_path.exists():
-                try:
-                    part_path.unlink()
-                except Exception:  # noqa: BLE001
-                    pass
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to store chunk",
@@ -460,11 +511,38 @@ class AuditService:
                 detail="Invalid upload metadata",
             )
 
-        for index in range(total_chunks):
-            if not (chunk_dir / f"{index:06d}.part").is_file():
+        done_markers = [
+            chunk_dir / f"{index:06d}.done"
+            for index in range(total_chunks)
+        ]
+        legacy_parts = [
+            chunk_dir / f"{index:06d}.part"
+            for index in range(total_chunks)
+        ]
+        if not all(marker.is_file() for marker in done_markers) and not all(
+            part.is_file() for part in legacy_parts
+        ):
+            missing_index = next(
+                (
+                    index
+                    for index, marker in enumerate(done_markers)
+                    if not marker.is_file()
+                ),
+                0,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Missing chunk {missing_index}",
+            )
+
+        payload_path = chunk_dir / "payload.bin"
+        using_direct_upload = payload_path.is_file() and all(
+            marker.is_file() for marker in done_markers
+        )
+        if using_direct_upload and payload_path.stat().st_size < int(meta.get("totalSize", 0)):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Missing chunk",
+                detail="Uploaded file is incomplete",
                 )
 
         audit_id = uuid.uuid4().hex
@@ -475,15 +553,17 @@ class AuditService:
         target_path = upload_dir / filename
 
         try:
-            with target_path.open("wb") as dest:
-                for index in range(total_chunks):
-                    part_path = chunk_dir / f"{index:06d}.part"
-                    with part_path.open("rb") as src:
-                        while True:
-                            buf = src.read(1024 * 1024)
-                            if not buf:
-                                break
-                            dest.write(buf)
+            if using_direct_upload:
+                # payload.bin and the final file live on the same filesystem,
+                # so this is an O(1) rename instead of copying the whole ZIP.
+                os.replace(payload_path, target_path)
+            else:
+                # Keep compatibility with uploads created before the direct
+                # write optimization was deployed.
+                with target_path.open("wb") as dest:
+                    for part_path in legacy_parts:
+                        with part_path.open("rb") as src:
+                            shutil.copyfileobj(src, dest, length=4 * 1024 * 1024)
         except Exception as exc:  # noqa: BLE001
             logger.error("[upload %s] 合并分片失败: %s", upload_id, exc)
             if target_path.exists():
@@ -542,17 +622,7 @@ class AuditService:
             logger.error("[upload %s] 清理上传会话元数据失败: %s", upload_id, exc)
 
         try:
-            for index in range(total_chunks):
-                part_path = chunk_dir / f"{index:06d}.part"
-                if part_path.exists():
-                    try:
-                        part_path.unlink()
-                    except Exception:  # noqa: BLE001
-                        pass
-            try:
-                chunk_dir.rmdir()
-            except Exception:  # noqa: BLE001
-                pass
+            shutil.rmtree(chunk_dir, ignore_errors=True)
         except Exception as exc:  # noqa: BLE001
             logger.error("[upload %s] 清理分片目录失败: %s", upload_id, exc)
 
@@ -633,19 +703,38 @@ class AuditService:
     # Statistics methods
     # ------------------------------------------------------------------
 
-    def get_usage_stats(self) -> dict:
+    def get_usage_stats(
+        self,
+        days: int = 30,
+        user_id: str | None = None,
+        firmware_type: str | None = None,
+        status: str | None = None,
+    ) -> dict:
         """
-        返回系统使用统计数据，面向管理层展示。
-        数据来源于 audits 集合的聚合。
+        返回运行看板统计数据，支持按时间、用户、固件类型和任务状态筛选。
         """
         now = datetime.now(timezone.utc)
+        audit_query: dict = {}
+
+        if days > 0:
+            audit_query["createdAt"] = {
+                "$gte": (now - timedelta(days=days)).isoformat(),
+            }
+        if user_id:
+            audit_query["userId"] = user_id
+        if firmware_type:
+            audit_query["firmwareType"] = firmware_type
+        if status == "ACTIVE":
+            audit_query["status"] = {"$in": ["ANALYZING", "PENDING", "UPLOADING"]}
+        elif status:
+            audit_query["status"] = status
 
         # --- overall counts ---
-        total_audits = self.db["audits"].count_documents({})
-        completed = self.db["audits"].count_documents({"status": "COMPLETED"})
-        failed = self.db["audits"].count_documents({"status": "FAILED"})
+        total_audits = self.db["audits"].count_documents(audit_query)
+        completed = self.db["audits"].count_documents({**audit_query, "status": "COMPLETED"})
+        failed = self.db["audits"].count_documents({**audit_query, "status": "FAILED"})
         analyzing = self.db["audits"].count_documents(
-            {"status": {"$in": ["ANALYZING", "PENDING", "UPLOADING"]}}
+            {**audit_query, "status": {"$in": ["ANALYZING", "PENDING", "UPLOADING"]}}
         )
 
         # --- pass rate among completed ---
@@ -653,6 +742,7 @@ class AuditService:
 
         # --- firmware type distribution ---
         type_pipeline = [
+            {"$match": audit_query},
             {"$group": {"_id": "$firmwareType", "count": {"$sum": 1}}},
         ]
         type_dist: dict[str, int] = {}
@@ -663,7 +753,7 @@ class AuditService:
         # --- last 7 days trend ---
         seven_days_ago = now - timedelta(days=7)
         daily_counter: dict[str, dict[str, int]] = {}
-        for doc in self.db["audits"].find({}, {"createdAt": 1, "status": 1}):
+        for doc in self.db["audits"].find(audit_query, {"createdAt": 1, "status": 1}):
             ts = self._parse_created_at(doc.get("createdAt"))
             if ts is None or ts < seven_days_ago:
                 continue
@@ -680,7 +770,12 @@ class AuditService:
         ]
 
         # --- check category distribution ---
+        audit_ids = [
+            doc["id"]
+            for doc in self.db["audits"].find(audit_query, {"_id": 0, "id": 1})
+        ]
         category_pipeline = [
+            {"$match": {"auditId": {"$in": audit_ids}}},
             {"$group": {"_id": "$category", "count": {"$sum": 1}}},
             {"$sort": {"_id": 1}},
         ]
@@ -688,12 +783,84 @@ class AuditService:
         for doc in self.db["audit_checks"].aggregate(category_pipeline):
             category_dist.append({"category": doc["_id"], "count": doc["count"]})
 
-        # --- unique users ---
-        user_pipeline = [
-            {"$match": {"userId": {"$exists": True, "$ne": None}}},
-            {"$group": {"_id": "$userId"}},
+        # --- registered user usage ---
+        user_usage_pipeline = [
+            {
+                "$match": {
+                    **audit_query,
+                    "userId": {"$exists": True, "$nin": [None, ""]},
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$userId",
+                    "totalAudits": {"$sum": 1},
+                    "completedAudits": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "COMPLETED"]}, 1, 0]}
+                    },
+                    "failedAudits": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "FAILED"]}, 1, 0]}
+                    },
+                    "analyzingAudits": {
+                        "$sum": {
+                            "$cond": [
+                                {"$in": ["$status", ["ANALYZING", "PENDING", "UPLOADING"]]},
+                                1,
+                                0,
+                            ]
+                        }
+                    },
+                    "lastActive": {"$max": "$createdAt"},
+                }
+            },
         ]
-        unique_user_count = self.db["audits"].distinct("userId", {"userId": {"$exists": True, "$ne": None}}).__len__()
+        usage_by_user = {
+            row["_id"]: row
+            for row in self.db["audits"].aggregate(user_usage_pipeline)
+            if row.get("_id")
+        }
+
+        user_stats: list[dict] = []
+        registered_itcodes: set[str] = set()
+        for user_doc in self.db["users"].find({}, {"itcode": 1, "profile": 1}):
+            itcode = user_doc.get("itcode")
+            if not itcode:
+                continue
+            registered_itcodes.add(itcode)
+            profile = user_doc.get("profile") or {}
+            usage = usage_by_user.get(itcode, {})
+            user_stats.append(
+                {
+                    "itcode": itcode,
+                    "name": profile.get("姓名") or profile.get("真实姓名") or profile.get("name") or itcode,
+                    "department": profile.get("部门") or "",
+                    "totalAudits": usage.get("totalAudits", 0),
+                    "completedAudits": usage.get("completedAudits", 0),
+                    "failedAudits": usage.get("failedAudits", 0),
+                    "analyzingAudits": usage.get("analyzingAudits", 0),
+                    "lastActive": usage.get("lastActive"),
+                }
+            )
+
+        # Preserve usage records for accounts that predate user profile creation.
+        for itcode, usage in usage_by_user.items():
+            if itcode in registered_itcodes:
+                continue
+            user_stats.append(
+                {
+                    "itcode": itcode,
+                    "name": itcode,
+                    "department": "",
+                    "totalAudits": usage.get("totalAudits", 0),
+                    "completedAudits": usage.get("completedAudits", 0),
+                    "failedAudits": usage.get("failedAudits", 0),
+                    "analyzingAudits": usage.get("analyzingAudits", 0),
+                    "lastActive": usage.get("lastActive"),
+                }
+            )
+
+        user_stats.sort(key=lambda item: item["totalAudits"], reverse=True)
+        unique_user_count = len(user_stats)
 
         return {
             "totalAudits": total_audits,
@@ -705,5 +872,6 @@ class AuditService:
             "dailyTrend": daily_rows,
             "categoryDistribution": category_dist,
             "uniqueUsers": unique_user_count,
+            "userStats": user_stats,
             "updatedAt": now.isoformat(),
         }

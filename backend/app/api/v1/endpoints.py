@@ -309,14 +309,50 @@ async def admin_login(payload: AdminLoginRequest):
 
 
 def get_admin_user(request: Request) -> dict:
-    """Require a valid admin session token from X-Session-Token header."""
+    """Require an admin session, including the designated OA admin account."""
     token = request.headers.get("X-Session-Token")
     service = get_auth_service()
-    return service.require_admin(token)
+    try:
+        return service.require_admin(token)
+    except HTTPException as exc:
+        if exc.status_code not in {
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
+        }:
+            raise
+
+        current_user = service.require_login(token)
+        if current_user.get("itcode") != "libiao1":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required",
+            )
+        return {
+            **current_user,
+            "isAdmin": True,
+        }
 
 
 @router.get("/admin/stats")
 async def get_admin_stats(request: Request, admin_user: dict = Depends(get_admin_user)):
-    """获取使用统计数据（仅管理员可访问）。"""
+    """兼容旧调用，返回默认时间范围的运行统计。"""
     service = get_audit_service()
     return service.get_usage_stats()
+
+
+@router.get("/admin/usage")
+async def get_admin_usage(
+    days: int = Query(30, ge=1, le=3650),
+    userId: str | None = Query(None),
+    firmwareType: str | None = Query(None),
+    status: str | None = Query(None),
+    admin_user: dict = Depends(get_admin_user),
+):
+    """按条件查询运行看板统计数据（仅管理员可访问）。"""
+    service = get_audit_service()
+    return service.get_usage_stats(
+        days=days,
+        user_id=userId,
+        firmware_type=firmwareType,
+        status=status,
+    )

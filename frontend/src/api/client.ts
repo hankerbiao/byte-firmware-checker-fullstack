@@ -211,6 +211,8 @@ export interface ChunkUploadOptions {
   onProgress?: (uploadedBytes: number, totalBytes: number) => void;
 }
 
+const CHUNK_UPLOAD_CONCURRENCY = 3;
+
 export async function createAuditChunked(
   params: CreateAuditParams,
   options: ChunkUploadOptions = {},
@@ -218,7 +220,6 @@ export async function createAuditChunked(
   const chunkSize = options.chunkSize ?? 8 * 1024 * 1024;
   const totalSize = params.file.size;
   const totalChunks = Math.ceil(totalSize / chunkSize);
-  const totalSteps = totalChunks + 1;
 
   const initResponse = await fetch(`${API_BASE_URL}/audits/chunk-init`, {
     method: 'POST',
@@ -245,31 +246,57 @@ export async function createAuditChunked(
   const initData: { uploadId: string } = await initResponse.json();
   const uploadId = initData.uploadId;
 
-  for (let index = 0; index < totalChunks; index++) {
-    const start = index * chunkSize;
-    const end = Math.min(totalSize, start + chunkSize);
-    const chunk = params.file.slice(start, end);
+  let nextChunkIndex = 0;
+  let uploadedBytes = 0;
+  const uploadController = new AbortController();
 
-    const formData = new FormData();
-    formData.append('uploadId', uploadId);
-    formData.append('chunkIndex', String(index));
-    formData.append('totalChunks', String(totalChunks));
-    formData.append('chunk', chunk);
+  const uploadNextChunks = async () => {
+    while (!uploadController.signal.aborted) {
+      const index = nextChunkIndex++;
+      if (index >= totalChunks) {
+        return;
+      }
 
-    const chunkResponse = await fetch(`${API_BASE_URL}/audits/chunk`, {
-      method: 'POST',
-      headers: withAuthHeaders(),
-      body: formData,
-    });
+      const start = index * chunkSize;
+      const end = Math.min(totalSize, start + chunkSize);
+      const chunk = params.file.slice(start, end);
+      const formData = new FormData();
+      formData.append('uploadId', uploadId);
+      formData.append('chunkIndex', String(index));
+      formData.append('totalChunks', String(totalChunks));
+      formData.append('chunk', chunk);
 
-    if (!chunkResponse.ok) {
-      throw new Error(`Failed to upload chunk ${index + 1}/${totalChunks}`);
+      try {
+        const chunkResponse = await fetch(`${API_BASE_URL}/audits/chunk`, {
+          method: 'POST',
+          headers: withAuthHeaders(),
+          body: formData,
+          signal: uploadController.signal,
+        });
+
+        if (!chunkResponse.ok) {
+          throw new Error(`Failed to upload chunk ${index + 1}/${totalChunks}`);
+        }
+
+        uploadedBytes += chunk.size;
+        options.onProgress?.(uploadedBytes, totalSize);
+      } catch (error) {
+        uploadController.abort();
+        throw error;
+      }
     }
+  };
 
-    if (options.onProgress) {
-      const completedSteps = index + 1;
-      options.onProgress(completedSteps, totalSteps);
-    }
+  try {
+    await Promise.all(
+      Array.from(
+        { length: Math.min(CHUNK_UPLOAD_CONCURRENCY, totalChunks) },
+        () => uploadNextChunks(),
+      ),
+    );
+  } catch (error) {
+    uploadController.abort();
+    throw error;
   }
 
   const completeResponse = await fetch(`${API_BASE_URL}/audits/chunk-complete`, {
@@ -285,7 +312,7 @@ export async function createAuditChunked(
   }
 
   if (options.onProgress) {
-    options.onProgress(totalSteps, totalSteps);
+    options.onProgress(totalSize, totalSize);
   }
 
   return completeResponse.json();
@@ -372,28 +399,6 @@ export async function downloadAuditReportPdf(auditId: string): Promise<Blob> {
   return response.blob();
 }
 
-export interface AdminLoginPayload {
-  username: string;
-  password: string;
-}
-
-export interface AdminLoginResponse {
-  ok: boolean;
-  token?: string | null;
-}
-
-export async function adminLogin(params: AdminLoginPayload): Promise<AdminLoginResponse> {
-  const response = await fetch(`${API_BASE_URL}/admin/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
-  if (!response.ok) {
-    throw new Error('Admin login failed');
-  }
-  return response.json();
-}
-
 export interface FirmwareTypeDistribution {
   [key: string]: number;
 }
@@ -420,11 +425,34 @@ export interface AdminStatsResponse {
   dailyTrend: DailyTrendItem[];
   categoryDistribution: CategoryDistributionItem[];
   uniqueUsers: number;
+  userStats: AdminUserStat[];
   updatedAt: string;
 }
 
-export async function getAdminStats(): Promise<AdminStatsResponse> {
-  const response = await fetch(`${API_BASE_URL}/admin/stats`, {
+export interface AdminUserStat {
+  itcode: string;
+  name: string;
+  department: string;
+  totalAudits: number;
+  completedAudits: number;
+  failedAudits: number;
+  analyzingAudits: number;
+  lastActive?: string | null;
+}
+
+export async function getAdminUsageStats(params: {
+  days: string;
+  userId: string;
+  firmwareType: string;
+  status: string;
+}): Promise<AdminStatsResponse> {
+  const query = new URLSearchParams();
+  query.set('days', params.days);
+  if (params.userId) query.set('userId', params.userId);
+  if (params.firmwareType) query.set('firmwareType', params.firmwareType);
+  if (params.status) query.set('status', params.status);
+
+  const response = await fetch(`${API_BASE_URL}/admin/usage?${query.toString()}`, {
     headers: withAuthHeaders(),
   });
   if (!response.ok) {
@@ -434,7 +462,7 @@ export async function getAdminStats(): Promise<AdminStatsResponse> {
     if (response.status === 403) {
       throw new Error('FORBIDDEN');
     }
-    throw new Error('Failed to fetch admin stats');
+    throw new Error('Failed to fetch admin usage stats');
   }
   return response.json();
 }

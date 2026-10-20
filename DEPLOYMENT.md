@@ -99,7 +99,7 @@ uv run python scripts/sync_mongodb_data.py
 部署使用 Nginx 对外提供 `http://<服务器IP>:9000/firmware-checker/`，API 通过同一端口反向代理；后端端口不直接暴露。上传仍采用 8 MiB 分片，Nginx 请求体上限为 10 GiB，文件及报告保存在部署目录的 `data/` 中。前端由本机 Node/pnpm 构建为静态文件，再由 Nginx 容器提供服务。
 
 1. 在本机创建 `backend/.env` 并配置 MongoDB 连接信息。该文件包含密钥，不要提交到 Git。
-2. 确认本机已安装 Node.js、Corepack/pnpm、Docker、Compose 和 `rsync`；服务器需安装 Docker Compose 插件，并允许部署用户运行 Docker。若目标目录 `/root/firmware-checker` 需要提权，部署用户需有相应权限。
+2. 确认本机已安装 Node.js、Corepack/pnpm、Docker、Compose 和 `rsync`；服务器需安装 Docker Compose 插件，并允许部署用户运行 Docker。默认目标目录为 `/data/byte-firmware-checker-fullstack`，部署用户需有相应权限。
    部署脚本会在本机构建 `linux/amd64` 的后端镜像并传输到服务器，适用于服务器架构不同且无法访问外部 Python 包源的环境。
 3. 运行部署脚本：
 
@@ -112,6 +112,6 @@ uv run python scripts/sync_mongodb_data.py
 查看服务状态和日志：
 
 ```bash
-ssh admin@10.17.158.114 'cd /root/firmware-checker && docker compose ps'
-ssh admin@10.17.158.114 'cd /root/firmware-checker && docker compose logs -f'
+ssh root@10.17.158.114 'cd /data/byte-firmware-checker-fullstack && docker compose ps'
+ssh root@10.17.158.114 'cd /data/byte-firmware-checker-fullstack && docker compose logs -f'
 ```

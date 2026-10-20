@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SERVER_HOST="10.17.158.114"
-SERVER_USER="root"
-REMOTE_DIR="/root/firmware-checker"
+SERVER_HOST="${SERVER_HOST:-10.17.158.114}"
+SERVER_USER="${SERVER_USER:-root}"
+REMOTE_DIR="${REMOTE_DIR:-/data/byte-firmware-checker-fullstack}"
 LOCAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_IMAGE="firmware-checker-backend:deploy"
+NGINX_IMAGE="${NGINX_IMAGE:-nginx:1.27-alpine}"
 
 SSH_BASE_OPTS=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=15)
 SSH_CMD=(ssh "${SSH_BASE_OPTS[@]}")
@@ -81,7 +82,7 @@ SSHPASS="${SSHPASS-}" rsync -az \
 
 echo "Building and starting Docker Compose services..."
 "${SSH_CMD[@]}" "${SERVER_USER}@${SERVER_HOST}" \
-  "cd '${REMOTE_DIR}' && docker compose up -d --build --remove-orphans"
+  "cd '${REMOTE_DIR}' && NGINX_IMAGE='${NGINX_IMAGE}' docker compose up -d --build --remove-orphans"
 
 echo "Checking deployment health..."
 "${SSH_CMD[@]}" "${SERVER_USER}@${SERVER_HOST}" \

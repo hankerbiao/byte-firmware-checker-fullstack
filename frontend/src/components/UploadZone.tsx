@@ -20,6 +20,8 @@ import {
   Box,
   AlertCircle,
   ArrowUpRight,
+  Check,
+  Sparkles,
 } from 'lucide-react';
 
 // ============================================================================
@@ -192,6 +194,7 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
   const [muyuCount, setMuyuCount] = useState(0);
   const [muyuBeat, setMuyuBeat] = useState(0);
   const [muyuMessage, setMuyuMessage] = useState<{ id: number; text: string } | null>(null);
+  const [uploadCelebration, setUploadCelebration] = useState(false);
 
   /** 选中的固件类型 */
   const [firmwareType, setFirmwareType] = useState<FirmwareType>('AMI');
@@ -208,6 +211,7 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
   /** 文件输入元素引用，用于重置 */
   const fileInputRef = useRef<HTMLInputElement>(null);
   const muyuMessageTimeoutRef = useRef<number | null>(null);
+  const uploadCelebrationTimeoutRef = useRef<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   // --------------------------------------------------------------------------
@@ -228,6 +232,9 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
       }
       if (muyuMessageTimeoutRef.current !== null) {
         window.clearTimeout(muyuMessageTimeoutRef.current);
+      }
+      if (uploadCelebrationTimeoutRef.current !== null) {
+        window.clearTimeout(uploadCelebrationTimeoutRef.current);
       }
     };
   }, []);
@@ -288,6 +295,14 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
 
     setFiles(prev => [...prev, ...newEntries]);
     setUploadProgress(null);
+    setUploadCelebration(true);
+    if (uploadCelebrationTimeoutRef.current !== null) {
+      window.clearTimeout(uploadCelebrationTimeoutRef.current);
+    }
+    uploadCelebrationTimeoutRef.current = window.setTimeout(() => {
+      setUploadCelebration(false);
+      uploadCelebrationTimeoutRef.current = null;
+    }, 1800);
   }, []);
 
   /**
@@ -451,8 +466,10 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
       return `${baseClasses} bg-blue-600/5 border-blue-600 scale-[1.02] shadow-2xl`;
     }
 
-    return `${baseClasses} border-slate-200 dark:border-white/10 hover:border-blue-400 dark:hover:bg-white/5 shadow-2xl`;
-  }, [dragActive]);
+    return `${baseClasses} border-slate-200 dark:border-white/10 hover:border-blue-400 dark:hover:bg-white/5 shadow-2xl ${
+      uploadCelebration ? 'upload-zone-confirmed' : ''
+    }`;
+  }, [dragActive, uploadCelebration]);
 
   const handleZoneKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'Enter' && e.key !== ' ') {
@@ -509,23 +526,39 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
         {/* 上传图标 */}
         <div
           className={`
-            bg-blue-600 p-6 md:p-8 rounded-[2rem] shadow-2xl shadow-blue-600/40 mb-6 md:mb-8
+            relative bg-blue-600 p-6 md:p-8 rounded-[2rem] shadow-2xl shadow-blue-600/40 mb-6 md:mb-8
             group-hover:scale-110 group-hover:-rotate-6 transition-all duration-700
+            ${uploadCelebration ? 'upload-icon-confirmed' : ''}
           `}
         >
           <Box className="text-white" size={64} />
+          {uploadCelebration && (
+            <>
+              <span className="upload-spark upload-spark-one" aria-hidden="true"><Sparkles size={18} /></span>
+              <span className="upload-spark upload-spark-two" aria-hidden="true"><Sparkles size={14} /></span>
+              <span className="upload-check" aria-label="文件已接收"><Check size={18} /></span>
+            </>
+          )}
         </div>
 
         {/* 标题 */}
         <h3 className="text-2xl md:text-3xl font-black dark:text-white text-slate-900 mb-4 md:mb-5 tracking-tight uppercase">
-          导入审计资源包
+          {uploadProgress !== null ? '正在交给审计引擎' : '导入审计资源包'}
         </h3>
 
         {/* 说明文字 */}
         <p className="text-slate-500 dark:text-slate-400 max-w-sm mb-6 md:mb-8 text-sm md:text-base font-medium leading-relaxed">
-          请上传固件资源，仅支持{' '}
-          <span className="text-blue-600 dark:text-blue-400 font-black">.ZIP</span>{' '}
-          格式
+          {uploadProgress !== null ? (
+            <>
+              已收到 <span className="text-blue-600 dark:text-blue-400 font-black">{files.length}</span> 个资源包，正在稳稳上传
+            </>
+          ) : (
+            <>
+              请上传固件资源，仅支持{' '}
+              <span className="text-blue-600 dark:text-blue-400 font-black">.ZIP</span>{' '}
+              格式
+            </>
+          )}
         </p>
 
         {/* 标签 */}

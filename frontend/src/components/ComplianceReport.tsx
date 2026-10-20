@@ -34,65 +34,87 @@ const CIRCLE_CONFIG = {
 };
 
 // --- 子组件: 评分横幅 (ScoreBanner) ---
-const ScoreBanner: React.FC<{ report: InspectionReport; stats: { pass: number; warning: number; fail: number } }> = ({ report, stats }) => (
-  <div className={`${CARD_STYLE} p-8 md:p-12 rounded-[3.5rem] relative overflow-hidden group mb-10`}>
-    <div className="absolute -top-20 -right-20 p-16 opacity-[0.03] dark:opacity-[0.05] group-hover:rotate-45 transition-all duration-[3s] pointer-events-none text-slate-900 dark:text-white">
-      <ShieldCheck size={350} />
-    </div>
-    
-    <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12 relative z-10">
-      {/* 评分圆环可视化容器 */}
-      <div className="relative w-64 h-64 shrink-0 flex items-center justify-center bg-slate-50/50 dark:bg-white/5 rounded-[3rem] border border-slate-100 dark:border-white/5">
-        <svg className="w-56 h-56 transform -rotate-90 overflow-visible">
-          <circle cx={CIRCLE_CONFIG.CX} cy={CIRCLE_CONFIG.CY} r={CIRCLE_CONFIG.R} stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-100 dark:text-white/5" />
-          <circle 
-            cx={CIRCLE_CONFIG.CX} cy={CIRCLE_CONFIG.CY} r={CIRCLE_CONFIG.R} stroke="currentColor" strokeWidth="16" fill="transparent"
-            strokeDasharray={CIRCLE_CONFIG.PERIMETER}
-            strokeDashoffset={CIRCLE_CONFIG.PERIMETER - (CIRCLE_CONFIG.PERIMETER * report.overallScore) / 100}
-            strokeLinecap="round"
-            className={`${report.overallScore >= 90 ? 'text-green-500' : 'text-blue-600'} transition-all duration-[1.5s] ease-out drop-shadow-[0_0_15px_rgba(34,197,94,0.3)]`}
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-7xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">{report.overallScore}</span>
-          <span className="text-[11px] font-black uppercase tracking-[0.4em] text-slate-400 mt-2">Compliance</span>
-        </div>
+const ScoreBanner: React.FC<{ report: InspectionReport; stats: { pass: number; warning: number; fail: number } }> = ({ report, stats }) => {
+  const [displayScore, setDisplayScore] = useState(0);
+
+  useEffect(() => {
+    let frameId = 0;
+    const startedAt = performance.now();
+    const duration = 1300;
+
+    const animateScore = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
+      setDisplayScore(Math.round(report.overallScore * easedProgress));
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(animateScore);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(animateScore);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [report.overallScore]);
+
+  return (
+    <div className={`${CARD_STYLE} p-8 md:p-12 rounded-[3.5rem] relative overflow-hidden group mb-10`}>
+      <div className="absolute -top-20 -right-20 p-16 opacity-[0.03] dark:opacity-[0.05] group-hover:rotate-45 transition-all duration-[3s] pointer-events-none text-slate-900 dark:text-white">
+        <ShieldCheck size={350} />
       </div>
 
-      <div className="flex-1 text-center md:text-left space-y-8">
-        <div>
-          <div className="flex items-center justify-center md:justify-start gap-4 mb-4">
-            <span className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-blue-600/20">
-              {report.firmwareType} Package
-            </span>
+      <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12 relative z-10">
+        {/* 评分圆环可视化容器 */}
+        <div className="relative w-64 h-64 shrink-0 flex items-center justify-center bg-slate-50/50 dark:bg-white/5 rounded-[3rem] border border-slate-100 dark:border-white/5">
+          <svg className="w-56 h-56 transform -rotate-90 overflow-visible">
+            <circle cx={CIRCLE_CONFIG.CX} cy={CIRCLE_CONFIG.CY} r={CIRCLE_CONFIG.R} stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-100 dark:text-white/5" />
+            <circle
+              cx={CIRCLE_CONFIG.CX} cy={CIRCLE_CONFIG.CY} r={CIRCLE_CONFIG.R} stroke="currentColor" strokeWidth="16" fill="transparent"
+              strokeDasharray={CIRCLE_CONFIG.PERIMETER}
+              strokeDashoffset={CIRCLE_CONFIG.PERIMETER - (CIRCLE_CONFIG.PERIMETER * displayScore) / 100}
+              strokeLinecap="round"
+              className={`${report.overallScore >= 90 ? 'text-green-500' : 'text-blue-600'} transition-all duration-150 ease-out drop-shadow-[0_0_15px_rgba(34,197,94,0.3)]`}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-7xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">{displayScore}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.4em] text-slate-400 mt-2">Compliance</span>
           </div>
-          <h2 className="text-5xl font-black text-slate-900 dark:text-white leading-tight tracking-tight flex items-center gap-4">
-            {report.productName}
-            {stats.fail === 0 && stats.warning === 0 && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-800 text-xs font-black rounded-full shadow-lg shadow-yellow-400/20 animate-pulse">
-                <PartyPopper size={14} /> PERFECT
-              </span>
-            )}
-          </h2>
-          <p className="text-lg font-bold text-slate-400 mt-2">版本迭代审计: <span className="text-blue-500">{report.version}</span></p>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 md:gap-6">
-          {[
-            { label: '合规项', value: stats.pass, color: 'text-green-500' },
-            { label: '错误', value: stats.fail, color: 'text-rose-500' },
-            { label: '警告', value: stats.warning, color: 'text-amber-500' }
-          ].map(item => (
-            <div key={item.label} className="p-5 bg-slate-50 dark:bg-white/5 rounded-[2rem] border border-slate-100 dark:border-white/5 text-center shadow-sm hover:scale-[1.02] transition-transform">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</p>
-              <p className={`text-4xl font-black ${item.color}`}>{item.value}</p>
+        <div className="flex-1 text-center md:text-left space-y-8">
+          <div>
+            <div className="flex items-center justify-center md:justify-start gap-4 mb-4">
+              <span className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-blue-600/20">
+                {report.firmwareType} Package
+              </span>
             </div>
-          ))}
+            <h2 className="text-5xl font-black text-slate-900 dark:text-white leading-tight tracking-tight flex items-center gap-4">
+              {report.productName}
+              {stats.fail === 0 && stats.warning === 0 && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-800 text-xs font-black rounded-full shadow-lg shadow-yellow-400/20 animate-pulse">
+                  <PartyPopper size={14} /> PERFECT
+                </span>
+              )}
+            </h2>
+            <p className="text-lg font-bold text-slate-400 mt-2">版本迭代审计: <span className="text-blue-500">{report.version}</span></p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 md:gap-6">
+            {[
+              { label: '合规项', value: stats.pass, color: 'text-green-500' },
+              { label: '错误', value: stats.fail, color: 'text-rose-500' },
+              { label: '警告', value: stats.warning, color: 'text-amber-500' }
+            ].map(item => (
+              <div key={item.label} className="p-5 bg-slate-50 dark:bg-white/5 rounded-[2rem] border border-slate-100 dark:border-white/5 text-center shadow-sm hover:scale-[1.02] transition-transform">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</p>
+                <p className={`text-4xl font-black ${item.color}`}>{item.value}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const AuditItem: React.FC<{ item: CheckItem }> = ({ item }) => (
   <div className={`${CARD_STYLE} p-8 rounded-[2.5rem] group hover:border-blue-500/30`}>
