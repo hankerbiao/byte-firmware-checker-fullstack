@@ -1,6 +1,6 @@
-# Dependencies are preinstalled in the local build image and transferred to
-# the deployment host because the server does not have outbound package access.
-FROM byte-firmware-checker-fullstack-backend:latest
+FROM quality-monitoring-backend:local
+
+USER root
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -8,6 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY requirements.txt ./
+RUN pip install --no-cache-dir \
+    "pdfplumber>=0.11.9,<1.0.0" \
+    "pypdf2>=3.0.1,<4.0.0" \
+    "reportlab>=4.0.0,<5.0.0"
 
 COPY app ./app
 

@@ -5,7 +5,7 @@ SERVER_HOST="10.17.158.114"
 SERVER_USER="root"
 REMOTE_DIR="/root/firmware-checker"
 LOCAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BACKEND_BASE_IMAGE="byte-firmware-checker-fullstack-backend:latest"
+BACKEND_IMAGE="firmware-checker-backend:deploy"
 
 SSH_BASE_OPTS=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=15)
 SSH_CMD=(ssh "${SSH_BASE_OPTS[@]}")
@@ -21,9 +21,8 @@ if [[ ! -f "${LOCAL_ROOT}/backend/.env" ]]; then
   exit 1
 fi
 
-if ! command -v docker >/dev/null 2>&1 || ! docker image inspect "${BACKEND_BASE_IMAGE}" >/dev/null 2>&1; then
-  echo "Missing local backend dependency image: ${BACKEND_BASE_IMAGE}" >&2
-  echo "Build or restore that image before deploying to the network-isolated server." >&2
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker is required to build the deployment image." >&2
   exit 1
 fi
 
@@ -37,6 +36,13 @@ echo "Building frontend assets..."
     VITE_API_BASE_PATH=/firmware-checker \
     ./node_modules/.bin/vite build
 )
+
+echo "Building ${BACKEND_IMAGE} for linux/amd64..."
+docker buildx build \
+  --platform linux/amd64 \
+  --load \
+  --tag "${BACKEND_IMAGE}" \
+  "${LOCAL_ROOT}/backend"
 
 if ! ssh "${SSH_BASE_OPTS[@]}" -o BatchMode=yes "${SERVER_USER}@${SERVER_HOST}" true >/dev/null 2>&1; then
   if ! command -v sshpass >/dev/null 2>&1; then
@@ -55,8 +61,8 @@ fi
 echo "Preparing ${REMOTE_DIR} on ${SERVER_HOST}..."
 "${SSH_CMD[@]}" "${SERVER_USER}@${SERVER_HOST}" "mkdir -p '${REMOTE_DIR}'"
 
-echo "Transferring backend dependency image..."
-docker save "${BACKEND_BASE_IMAGE}" | gzip | "${SSH_CMD[@]}" "${SERVER_USER}@${SERVER_HOST}" "gunzip | docker load"
+echo "Transferring backend image..."
+docker save "${BACKEND_IMAGE}" | gzip | "${SSH_CMD[@]}" "${SERVER_USER}@${SERVER_HOST}" "gunzip | docker load"
 
 echo "Uploading project files..."
 SSHPASS="${SSHPASS-}" rsync -az \

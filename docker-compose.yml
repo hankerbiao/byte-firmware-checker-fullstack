@@ -1,7 +1,6 @@
 services:
   backend:
-    build:
-      context: ./backend
+    image: firmware-checker-backend:deploy
     env_file:
       - ./backend/.env
     environment:
