@@ -100,6 +100,7 @@ uv run python scripts/sync_mongodb_data.py
 
 1. 在本机创建 `backend/.env` 并配置 MongoDB 连接信息。该文件包含密钥，不要提交到 Git。
 2. 确认本机已安装 Node.js、Corepack/pnpm、Docker、Compose 和 `rsync`；服务器需安装 Docker Compose 插件，并允许部署用户运行 Docker。若目标目录 `/root/firmware-checker` 需要提权，部署用户需有相应权限。
+   后端镜像会复用本机的 `byte-firmware-checker-fullstack-backend:latest` 依赖镜像，并在部署时传输到服务器，适用于服务器无法访问外部 Python 包源的环境。
 3. 运行部署脚本：
 
 ```bash

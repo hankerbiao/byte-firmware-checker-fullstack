@@ -5,6 +5,7 @@ SERVER_HOST="10.17.158.114"
 SERVER_USER="root"
 REMOTE_DIR="/root/firmware-checker"
 LOCAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BACKEND_BASE_IMAGE="byte-firmware-checker-fullstack-backend:latest"
 
 SSH_BASE_OPTS=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=15)
 SSH_CMD=(ssh "${SSH_BASE_OPTS[@]}")
@@ -17,6 +18,12 @@ fi
 
 if [[ ! -f "${LOCAL_ROOT}/backend/.env" ]]; then
   echo "Missing backend/.env. Create it from backend/.env.example and set the MongoDB credentials first." >&2
+  exit 1
+fi
+
+if ! command -v docker >/dev/null 2>&1 || ! docker image inspect "${BACKEND_BASE_IMAGE}" >/dev/null 2>&1; then
+  echo "Missing local backend dependency image: ${BACKEND_BASE_IMAGE}" >&2
+  echo "Build or restore that image before deploying to the network-isolated server." >&2
   exit 1
 fi
 
@@ -47,6 +54,9 @@ fi
 
 echo "Preparing ${REMOTE_DIR} on ${SERVER_HOST}..."
 "${SSH_CMD[@]}" "${SERVER_USER}@${SERVER_HOST}" "mkdir -p '${REMOTE_DIR}'"
+
+echo "Transferring backend dependency image..."
+docker save "${BACKEND_BASE_IMAGE}" | gzip | "${SSH_CMD[@]}" "${SERVER_USER}@${SERVER_HOST}" "gunzip | docker load"
 
 echo "Uploading project files..."
 SSHPASS="${SSHPASS-}" rsync -az \

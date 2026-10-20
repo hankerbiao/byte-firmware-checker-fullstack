@@ -1,5 +1,6 @@
-# The deployment host already ships this Python 3.12 base image locally.
-FROM unidata:local
+# Dependencies are preinstalled in the local build image and transferred to
+# the deployment host because the server does not have outbound package access.
+FROM byte-firmware-checker-fullstack-backend:latest
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -7,7 +8,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
