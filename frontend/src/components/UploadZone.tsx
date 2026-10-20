@@ -19,6 +19,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Box,
   AlertCircle,
+  ArrowUpRight,
 } from 'lucide-react';
 
 // ============================================================================
@@ -188,6 +189,9 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
 
   /** 是否处于拖拽激活状态 */
   const [dragActive, setDragActive] = useState(false);
+  const [muyuCount, setMuyuCount] = useState(0);
+  const [muyuBeat, setMuyuBeat] = useState(0);
+  const [muyuMessage, setMuyuMessage] = useState<{ id: number; text: string } | null>(null);
 
   /** 选中的固件类型 */
   const [firmwareType, setFirmwareType] = useState<FirmwareType>('AMI');
@@ -203,6 +207,7 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
 
   /** 文件输入元素引用，用于重置 */
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const muyuMessageTimeoutRef = useRef<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   // --------------------------------------------------------------------------
@@ -220,6 +225,9 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
     return () => {
       if (errorTimeoutRef.current !== null) {
         window.clearTimeout(errorTimeoutRef.current);
+      }
+      if (muyuMessageTimeoutRef.current !== null) {
+        window.clearTimeout(muyuMessageTimeoutRef.current);
       }
     };
   }, []);
@@ -251,6 +259,24 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
       errorTimeoutRef.current = null;
     }, DEFAULT_CONFIG.errorDuration);
   }, []);
+
+  const handleMuyuTap = useCallback(() => {
+    const blessings = ['功德 +1', '财运上涨', '好运连连', '福气 +1', '心想事成'];
+    const nextCount = muyuCount + 1;
+    setMuyuCount(nextCount);
+    setMuyuBeat(value => value + 1);
+    setMuyuMessage({
+      id: Date.now(),
+      text: blessings[(nextCount - 1) % blessings.length],
+    });
+
+    if (muyuMessageTimeoutRef.current !== null) {
+      window.clearTimeout(muyuMessageTimeoutRef.current);
+    }
+    muyuMessageTimeoutRef.current = window.setTimeout(() => {
+      setMuyuMessage(null);
+    }, 1700);
+  }, [muyuCount]);
 
   const appendFiles = useCallback((incomingFiles: File[]) => {
     if (incomingFiles.length === 0) return;
@@ -608,12 +634,91 @@ const UploadZone: React.FC<UploadZoneProps> = React.memo(({
 
         {!isLoggedIn && (
           <div
-            className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm rounded-[2.5rem] flex flex-col items-center justify-center z-10"
+            className="login-guide absolute inset-0 overflow-hidden bg-slate-900/80 backdrop-blur-sm rounded-[2.5rem] flex flex-col items-center justify-center z-10 px-5 py-6 text-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <AlertCircle size={48} className="text-rose-500 mb-4" />
-            <h4 className="text-xl font-black text-white mb-2">请先登录</h4>
-            <p className="text-slate-300 text-sm">未登录状态下无法使用导入审计功能</p>
+            <ArrowUpRight
+              aria-hidden="true"
+              className="login-guide-arrow absolute right-5 top-5 text-sky-300 sm:right-8 sm:top-7"
+              size={34}
+            />
+            <div className={`muyu-stage ${muyuMessage ? 'muyu-is-knocking' : ''} muyu-beat-${muyuBeat % 2}`}>
+              <div className="muyu-aura" aria-hidden="true" />
+              <div className="muyu-ripple muyu-ripple-one" aria-hidden="true" />
+              <div className="muyu-ripple muyu-ripple-two" aria-hidden="true" />
+              <button
+                type="button"
+                className="muyu-tap-button"
+                onClick={handleMuyuTap}
+                aria-label="敲发财木鱼"
+              >
+                <svg
+                  className="muyu-wooden-fish"
+                  viewBox="0 0 260 230"
+                  role="img"
+                  aria-label="发财木鱼，点击可以敲击"
+                >
+                  <defs>
+                    <linearGradient id="muyu-wood" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stopColor="#f4b267" />
+                      <stop offset=".48" stopColor="#b85d2f" />
+                      <stop offset="1" stopColor="#71351f" />
+                    </linearGradient>
+                    <linearGradient id="muyu-edge" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stopColor="#8f4325" />
+                      <stop offset="1" stopColor="#4a2118" />
+                    </linearGradient>
+                    <linearGradient id="muyu-gold" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stopColor="#fff1a6" />
+                      <stop offset=".5" stopColor="#f4bd42" />
+                      <stop offset="1" stopColor="#b96b18" />
+                    </linearGradient>
+                    <filter id="muyu-shadow" x="-30%" y="-30%" width="170%" height="190%">
+                      <feDropShadow dx="0" dy="8" stdDeviation="7" floodColor="#020617" floodOpacity=".4" />
+                    </filter>
+                  </defs>
+
+                  <ellipse cx="126" cy="213" rx="92" ry="10" fill="#020617" opacity=".38" />
+                  <g className="muyu-body" filter="url(#muyu-shadow)">
+                    <path d="M48 202c14-17 42-25 78-25 38 0 67 8 80 25-16 18-46 26-80 26-34 0-63-8-78-26Z" fill="#9a2932" stroke="#531824" strokeWidth="5" />
+                    <path d="M61 199c18-10 41-14 65-14 28 0 51 5 68 15-16 11-39 16-67 16-27 0-50-5-66-17Z" fill="#d64a3f" />
+                    <path d="M73 194c11-5 23-8 35-9m39 0c14 1 25 4 36 9" fill="none" stroke="#f2b24b" strokeWidth="4" strokeLinecap="round" opacity=".8" />
+                    <path d="M57 125c0-51 34-87 80-91 48-4 91 28 95 79 4 48-31 88-81 94-48 6-90-27-94-82Z" fill="url(#muyu-wood)" stroke="url(#muyu-edge)" strokeWidth="8" />
+                    <path d="M67 101c15-35 42-54 74-58 35-5 66 10 83 36-25-10-51-14-76-10-29 4-54 15-81 32Z" fill="#ffd58f" opacity=".35" />
+                    <path d="M75 82c22-16 44-24 68-26m-60 39c22-14 43-20 66-21m-41 35c18-10 37-15 57-15" fill="none" stroke="#ffe3ad" strokeWidth="4" strokeLinecap="round" opacity=".24" />
+                    <path d="M59 131c25 22 64 32 107 25 27-4 48-15 64-30" fill="none" stroke="#5b291c" strokeWidth="12" strokeLinecap="round" />
+                    <path d="M65 129c26 17 61 24 100 18 25-4 45-13 60-26" fill="none" stroke="#271714" strokeWidth="5" strokeLinecap="round" />
+                    <path d="M71 156c22 23 53 34 87 31 30-2 54-16 68-39" fill="none" stroke="#6e321e" strokeWidth="7" strokeLinecap="round" opacity=".65" />
+                    <path d="M78 166c19 17 42 25 68 24 22-1 41-8 55-21" fill="none" stroke="#f1a45b" strokeWidth="3" strokeLinecap="round" opacity=".2" />
+                    <path d="M86 106c13-13 28-17 42-13 11 3 19 11 24 21-12-4-23-5-34-2-12 3-22 7-32 14Z" fill="#7b3821" opacity=".58" />
+                    <path d="M93 109c12-9 24-11 36-8 8 2 14 6 19 12" fill="none" stroke="#e79b54" strokeWidth="3" strokeLinecap="round" opacity=".65" />
+                    <path d="M153 116c13 4 22 11 27 22-13-3-24-8-33-15Z" fill="#6c301f" opacity=".72" />
+                    <path d="M162 123c9 4 15 9 19 16" fill="none" stroke="#e79b54" strokeWidth="3" strokeLinecap="round" opacity=".55" />
+                    <path d="M54 139c-10 6-15 16-13 27 3 12 12 19 24 22-8-13-9-29-1-45Z" fill="#77341f" stroke="#4a2118" strokeWidth="5" />
+                    <path d="M48 149c-5 7-5 14-2 21" fill="none" stroke="#f1a45b" strokeWidth="3" strokeLinecap="round" opacity=".45" />
+                    <circle cx="132" cy="171" r="14" fill="url(#muyu-gold)" stroke="#925017" strokeWidth="3" />
+                    <text x="132" y="178" textAnchor="middle" fontSize="17" fontWeight="900" fill="#704016">财</text>
+                  </g>
+
+                  <g className="muyu-mallet">
+                    <path d="M203 91 232 52" stroke="#7b3d25" strokeWidth="8" strokeLinecap="round" />
+                    <path d="M202 95 231 55" stroke="#f0a75a" strokeWidth="3" strokeLinecap="round" opacity=".7" />
+                    <ellipse cx="235" cy="48" rx="18" ry="12" transform="rotate(-25 235 48)" fill="#d95242" stroke="#8f2927" strokeWidth="4" />
+                    <ellipse cx="231" cy="45" rx="7" ry="4" transform="rotate(-25 231 45)" fill="#ff9a7d" opacity=".8" />
+                  </g>
+                </svg>
+                <span className="muyu-count">功德 {muyuCount}</span>
+              </button>
+              {muyuMessage && (
+                <span key={muyuMessage.id} className="muyu-toast" role="status">
+                  {muyuMessage.text}
+                </span>
+              )}
+            </div>
+            <div className="mt-1">
+              <h4 className="text-xl font-black text-white mb-2">请先登录</h4>
+              <p className="text-slate-200 text-sm">点击右上角「OA 登录」开始审计</p>
+            </div>
           </div>
         )}
       </div>

@@ -119,6 +119,281 @@
         html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
           background: rgba(255, 255, 255, 0.1);
         }
+
+        @keyframes login-cat-float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-5px); }
+        }
+
+        @keyframes login-cat-breathe {
+          0%, 100% { transform: scaleY(1) translateY(0); }
+          50% { transform: scaleY(1.015) translateY(-1px); }
+        }
+
+        @keyframes login-cat-lucky-wave {
+          0%, 100% { transform: rotate(5deg) translate(0, 0); }
+          28% { transform: rotate(-7deg) translate(-2px, -4px); }
+          55% { transform: rotate(5deg) translate(1px, 0); }
+          78% { transform: rotate(-3deg) translate(-1px, -2px); }
+        }
+
+        @keyframes login-cat-bell {
+          0%, 100% { transform: rotate(-4deg); }
+          50% { transform: rotate(5deg); }
+        }
+
+        @keyframes login-guide-pulse {
+          0%, 100% { opacity: 0.7; transform: translate(0, 0); }
+          50% { opacity: 1; transform: translate(2px, -2px); }
+        }
+
+        .login-cat {
+          overflow: visible;
+          animation: login-cat-float 2.8s ease-in-out infinite;
+        }
+
+        .login-cat-body {
+          transform-box: fill-box;
+          transform-origin: center bottom;
+          animation: login-cat-breathe 3.2s ease-in-out infinite;
+        }
+
+        .login-cat-head {
+          transform-box: fill-box;
+          transform-origin: center;
+          transition: transform 180ms ease-out;
+        }
+
+        .login-cat-paw {
+          transform-box: fill-box;
+          transform-origin: 82% 86%;
+          animation: login-cat-lucky-wave 1.9s ease-in-out infinite;
+        }
+
+        .login-cat-bell {
+          transform-box: fill-box;
+          transform-origin: center top;
+          animation: login-cat-bell 1.9s ease-in-out infinite;
+        }
+
+        .login-guide-arrow {
+          animation: login-guide-pulse 1.1s ease-in-out infinite;
+        }
+
+        .muyu-stage {
+          position: relative;
+          width: min(18rem, 78vw);
+          height: 15.5rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .muyu-aura {
+          position: absolute;
+          width: 11rem;
+          height: 8rem;
+          border-radius: 50%;
+          background: radial-gradient(ellipse, rgba(242, 172, 82, .26), transparent 68%);
+          filter: blur(8px);
+          transform: translateY(1.5rem);
+        }
+
+        .muyu-wooden-fish {
+          position: relative;
+          z-index: 2;
+          width: 15rem;
+          height: 13.5rem;
+          overflow: visible;
+          transition: transform .2s ease;
+        }
+
+        .muyu-tap-button {
+          position: relative;
+          z-index: 2;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 16rem;
+          height: 14rem;
+          padding: 0;
+          border: 0;
+          border-radius: 50%;
+          background: transparent;
+          cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .muyu-tap-button:hover .muyu-wooden-fish {
+          transform: translateY(-3px) scale(1.025);
+        }
+
+        .muyu-tap-button:focus-visible {
+          outline: 3px solid rgba(125, 211, 252, .9);
+          outline-offset: 5px;
+        }
+
+        .muyu-body {
+          transform-box: fill-box;
+          transform-origin: center;
+          transition: transform .16s ease;
+        }
+
+        .muyu-mallet {
+          transform-box: view-box;
+          transform-origin: 204px 94px;
+          transition: transform .16s ease;
+        }
+
+        .muyu-tap-hint,
+        .muyu-count {
+          position: absolute;
+          z-index: 3;
+          pointer-events: none;
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: .08em;
+          white-space: nowrap;
+        }
+
+        .muyu-tap-hint {
+          bottom: 1px;
+          padding: 5px 10px;
+          color: rgba(255, 237, 190, .92);
+          background: rgba(92, 42, 24, .72);
+          border: 1px solid rgba(255, 208, 132, .32);
+          border-radius: 999px;
+        }
+
+        .muyu-count {
+          top: 5px;
+          right: 4px;
+          padding: 5px 9px;
+          color: #6e3b13;
+          background: linear-gradient(135deg, #fff2ae, #efb947);
+          border: 1px solid rgba(255, 244, 180, .8);
+          border-radius: 999px;
+          box-shadow: 0 4px 14px rgba(245, 183, 62, .18);
+        }
+
+        .muyu-toast {
+          position: absolute;
+          z-index: 4;
+          top: .3rem;
+          left: 50%;
+          color: #ffe8a7;
+          font-size: 18px;
+          font-weight: 900;
+          letter-spacing: .03em;
+          text-shadow: 0 2px 12px rgba(249, 180, 61, .32);
+          pointer-events: none;
+          white-space: nowrap;
+          transform: translateX(-50%);
+          animation: muyu-toast-float 1.7s ease-out both;
+        }
+
+        .muyu-ripple {
+          position: absolute;
+          z-index: 1;
+          width: 7rem;
+          height: 5rem;
+          border: 2px solid rgba(255, 211, 123, 0);
+          border-radius: 50%;
+          transform: translateY(1.5rem) scale(.65);
+          opacity: 0;
+        }
+
+        @keyframes muyu-knock {
+          0%, 100% { transform: rotate(0deg); }
+          22% { transform: rotate(-5deg) translate(-2px, 1px); }
+          48% { transform: rotate(4deg) translate(1px, -1px); }
+          72% { transform: rotate(-2deg); }
+        }
+
+        @keyframes muyu-mallet-knock {
+          0%, 100% { transform: rotate(0deg); }
+          35% { transform: rotate(-24deg); }
+          62% { transform: rotate(8deg); }
+        }
+
+        @keyframes muyu-knock-alt {
+          0%, 100% { transform: rotate(0deg); }
+          22% { transform: rotate(5deg) translate(2px, 1px); }
+          48% { transform: rotate(-4deg) translate(-1px, -1px); }
+          72% { transform: rotate(2deg); }
+        }
+
+        @keyframes muyu-mallet-knock-alt {
+          0%, 100% { transform: rotate(0deg); }
+          35% { transform: rotate(-20deg); }
+          62% { transform: rotate(6deg); }
+        }
+
+        @keyframes muyu-ripple-out {
+          0% { opacity: .65; transform: translateY(1.5rem) scale(.7); border-color: rgba(255, 211, 123, .55); }
+          100% { opacity: 0; transform: translateY(1.5rem) scale(1.5); border-color: rgba(255, 211, 123, 0); }
+        }
+
+        @keyframes muyu-toast-float {
+          0% { opacity: 0; transform: translate(-50%, 12px) scale(.85); }
+          18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+          68% { opacity: 1; transform: translate(-50%, -8px) scale(1); }
+          100% { opacity: 0; transform: translate(-50%, -24px) scale(.96); }
+        }
+
+        .muyu-is-knocking .muyu-body {
+          animation: muyu-knock .38s cubic-bezier(.2, .8, .35, 1);
+        }
+
+        .muyu-is-knocking .muyu-mallet {
+          animation: muyu-mallet-knock .38s cubic-bezier(.2, .8, .35, 1);
+        }
+
+        .muyu-is-knocking.muyu-beat-1 .muyu-body {
+          animation-name: muyu-knock-alt;
+        }
+
+        .muyu-is-knocking.muyu-beat-1 .muyu-mallet {
+          animation-name: muyu-mallet-knock-alt;
+        }
+
+        .muyu-is-knocking .muyu-ripple-one {
+          animation: muyu-ripple-out .8s ease-out both;
+        }
+
+        .muyu-is-knocking .muyu-ripple-two {
+          animation: muyu-ripple-out .8s .12s ease-out both;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .login-cat,
+          .login-guide-arrow {
+            animation: none;
+          }
+
+          .login-cat-body,
+          .login-cat-paw,
+          .login-cat-bell {
+            animation: none;
+          }
+
+          .login-cat-head {
+            transition: none;
+          }
+
+          .muyu-wooden-fish,
+          .muyu-body,
+          .muyu-mallet {
+            transition: none;
+            animation: none;
+          }
+
+          .muyu-toast,
+          .muyu-ripple-one,
+          .muyu-ripple-two {
+            animation: none;
+          }
+        }
     </style>
 <script type="importmap">
 {

@@ -104,13 +104,15 @@ export const NavBar: React.FC<{
                     </button>
 
                     {!loggedIn && (
-                        <button
-                            className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-full bg-blue-600 text-white hover:bg-blue-500 transition-all"
-                            onClick={onLogin}
-                        >
-                            <LogIn size={16}/>
-                            <span>OA 登录</span>
-                        </button>
+                        <div className="relative">
+                            <button
+                                className="relative z-10 flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-full bg-blue-600 text-white hover:bg-blue-500 transition-all"
+                                onClick={onLogin}
+                            >
+                                <LogIn size={16}/>
+                                <span>OA 登录</span>
+                            </button>
+                        </div>
                     )}
                     {loggedIn && (
                         <div className="relative" ref={userMenuRef}>

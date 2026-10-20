@@ -31,7 +31,7 @@ def create_app() -> FastAPI:
 
 app = create_app()
 
-MultiPartParser.max_part_size = 16 * 1024 * 1024  # 16MB to support 8MB chunk uploads
+MultiPartParser.max_part_size = 16 * 1024 * 1024  # Keep form fields bounded; firmware data is uploaded as 8 MiB chunks.
 app.max_form_body_size = 16 * 1024 * 1024
 
 

@@ -26,8 +26,8 @@ TARGET_MONGO_URI = (
     "mongodb://10.17.159.232:27017,10.17.159.228:27017,"
     "10.17.158.254:27017/?authSource=admin"
 )
-TARGET_DB_NAME = "byte-firmware-checker"
-TARGET_USERNAME = "byte-firmware-checker"
+TARGET_DB_NAME = "firmware-audit"
+TARGET_USERNAME = "firmware-audit"
 TARGET_AUTH_SOURCE = "admin"
 BATCH_SIZE = 1_000
 

@@ -93,3 +93,24 @@ uv run python scripts/sync_mongodb_data.py
 ```
 
 确认输出后再追加 `--apply`。目标数据库已有集合时，只有确认可安全幂等写入后才使用 `--allow-nonempty-target`。
+
+## Docker Compose 部署
+
+部署使用 Nginx 对外提供 `http://<服务器IP>:9000/firmware-checker/`，API 通过同一端口反向代理；后端端口不直接暴露。上传仍采用 8 MiB 分片，Nginx 请求体上限为 10 GiB，文件及报告保存在部署目录的 `data/` 中。前端由本机 Node/pnpm 构建为静态文件，再由 Nginx 容器提供服务。
+
+1. 在本机创建 `backend/.env` 并配置 MongoDB 连接信息。该文件包含密钥，不要提交到 Git。
+2. 确认本机已安装 Node.js、Corepack/pnpm、Docker、Compose 和 `rsync`；服务器需安装 Docker Compose 插件，并允许部署用户运行 Docker。若目标目录 `/root/firmware-checker` 需要提权，部署用户需有相应权限。
+3. 运行部署脚本：
+
+```bash
+./deploy/deploy.sh
+```
+
+脚本会优先使用 SSH 密钥；若不可用，则在终端中隐藏提示 SSH 密码。密码不会写入脚本。服务器登录用户和部署目录可在 `deploy/deploy.sh` 顶部调整。
+
+查看服务状态和日志：
+
+```bash
+ssh admin@10.17.158.114 'cd /root/firmware-checker && docker compose ps'
+ssh admin@10.17.158.114 'cd /root/firmware-checker && docker compose logs -f'
+```

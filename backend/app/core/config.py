@@ -15,8 +15,8 @@ class Settings(BaseModel):
     VERSION: str = "0.1.0"
 
     MONGO_URI: str = os.getenv("MONGO_URI", DEFAULT_MONGO_URI)
-    MONGO_DB_NAME: str = "byte-firmware-checker"
-    MONGO_USERNAME: str | None = os.getenv("MONGO_USERNAME", "byte-firmware-checker") or None
+    MONGO_DB_NAME: str = os.getenv("MONGO_DB_NAME", "firmware-audit")
+    MONGO_USERNAME: str | None = os.getenv("MONGO_USERNAME", "firmware-audit") or None
     MONGO_PASSWORD: str | None = os.getenv("MONGO_PASSWORD") or None
     MONGO_AUTH_SOURCE: str | None = os.getenv("MONGO_AUTH_SOURCE", "admin") or None
 

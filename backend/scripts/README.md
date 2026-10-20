@@ -1,7 +1,7 @@
 # MongoDB 数据迁移
 
 `sync_mongodb_data.py` 只会从旧库 `firmware_audit` 迁移到新集群的
-`byte-firmware-checker`，不支持通过参数或环境变量改写来源或目标。
+`firmware-audit`，不支持通过参数或环境变量改写来源或目标。
 
 启动后端服务和迁移前，都要在各自的运行环境注入目标库密码。迁移前还需停止旧服务的写入：
 
